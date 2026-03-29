@@ -292,8 +292,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
                     .textTheme
                     .bodyLarge
                     ?.color
-                    ?.withAlpha(bold ? 10 : 80),
-                fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+                    ?.withAlpha(bold ? 200 : 200),
+                fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
                 fontSize: bold ? 15 : 14,
               ),
             ),
@@ -302,7 +302,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
             formatZAR(amount),
             style: TextStyle(
               color: color,
-              fontWeight: bold ? FontWeight.w800 : FontWeight.w500,
+              fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
               fontSize: bold ? 15 : 14,
             ),
           ),

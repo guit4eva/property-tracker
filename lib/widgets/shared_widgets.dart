@@ -44,6 +44,7 @@ class StatCard extends StatelessWidget {
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               children: [
@@ -55,25 +56,33 @@ class StatCard extends StatelessWidget {
                   ),
                   child: Icon(icon, color: color, size: 18),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).textTheme.bodySmall?.color,
+                      height: 1.2,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              formatZAR(amount),
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: color,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).textTheme.bodySmall?.color,
+            const SizedBox(height: 8),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                formatZAR(amount),
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                  letterSpacing: -0.5,
+                ),
               ),
             ),
           ],
@@ -184,11 +193,14 @@ class EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 48, color: Theme.of(context).colorScheme.primary.withAlpha(80)),
+          Icon(icon,
+              size: 48,
+              color: Theme.of(context).colorScheme.primary.withAlpha(80)),
           const SizedBox(height: 12),
           Text(
             message,
-            style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color),
+            style:
+                TextStyle(color: Theme.of(context).textTheme.bodySmall?.color),
             textAlign: TextAlign.center,
           ),
         ],
@@ -206,7 +218,8 @@ class LoadingOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: CircularProgressIndicator(
-        valueColor: AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
+        valueColor:
+            AlwaysStoppedAnimation(Theme.of(context).colorScheme.primary),
         strokeWidth: 2,
       ),
     );

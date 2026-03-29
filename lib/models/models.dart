@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 // ─── models/property.dart ────────────────────────────────────────────────────
 
 class Property {
@@ -87,6 +89,63 @@ extension RatesFrequencyExtension on RatesFrequency {
   }
 }
 
+enum CostFrequency { onceOff, daily, weekly, monthly, yearly, custom }
+
+extension CostFrequencyExtension on CostFrequency {
+  String get label {
+    switch (this) {
+      case CostFrequency.onceOff:
+        return 'Once-off';
+      case CostFrequency.daily:
+        return 'Daily';
+      case CostFrequency.weekly:
+        return 'Weekly';
+      case CostFrequency.monthly:
+        return 'Monthly';
+      case CostFrequency.yearly:
+        return 'Yearly';
+      case CostFrequency.custom:
+        return 'Custom';
+    }
+  }
+
+  String get value {
+    switch (this) {
+      case CostFrequency.onceOff:
+        return 'once_off';
+      case CostFrequency.daily:
+        return 'daily';
+      case CostFrequency.weekly:
+        return 'weekly';
+      case CostFrequency.monthly:
+        return 'monthly';
+      case CostFrequency.yearly:
+        return 'yearly';
+      case CostFrequency.custom:
+        return 'custom';
+    }
+  }
+}
+
+CostFrequency costFrequencyFromString(String s) {
+  switch (s) {
+    case 'once_off':
+      return CostFrequency.onceOff;
+    case 'daily':
+      return CostFrequency.daily;
+    case 'weekly':
+      return CostFrequency.weekly;
+    case 'monthly':
+      return CostFrequency.monthly;
+    case 'yearly':
+      return CostFrequency.yearly;
+    case 'custom':
+      return CostFrequency.custom;
+    default:
+      return CostFrequency.monthly;
+  }
+}
+
 class MonthlyExpense {
   final String? id;
   final String propertyId;
@@ -98,7 +157,8 @@ class MonthlyExpense {
   final double ratesTaxes;
   final double? annualLevy;
   final double paymentReceived;
-  final double paymentToMunicipality;  // NEW: Track payments made to municipality
+  final double
+      paymentToMunicipality; // NEW: Track payments made to municipality
   final String? notes;
   final bool isLocked;
   final RatesFrequency ratesFrequency;
@@ -117,7 +177,7 @@ class MonthlyExpense {
     this.ratesTaxes = 0,
     this.annualLevy,
     this.paymentReceived = 0,
-    this.paymentToMunicipality = 0,  // NEW
+    this.paymentToMunicipality = 0, // NEW
     this.notes,
     this.isLocked = false,
     this.ratesFrequency = RatesFrequency.monthly,
@@ -142,9 +202,10 @@ class MonthlyExpense {
       (annualLevy ?? 0);
 
   double get netBalance => paymentReceived - totalExpenses;
-  
+
   // NEW: Balance after municipality payments
-  double get balanceAfterMunicipality => paymentReceived - totalExpenses - paymentToMunicipality;
+  double get balanceAfterMunicipality =>
+      paymentReceived - totalExpenses - paymentToMunicipality;
 
   factory MonthlyExpense.fromJson(Map<String, dynamic> json) => MonthlyExpense(
         id: json['id'] as String?,
@@ -157,7 +218,8 @@ class MonthlyExpense {
         ratesTaxes: (json['rates_taxes'] as num?)?.toDouble() ?? 0,
         annualLevy: (json['annual_levy'] as num?)?.toDouble(),
         paymentReceived: (json['payment_received'] as num?)?.toDouble() ?? 0,
-        paymentToMunicipality: (json['payment_to_municipality'] as num?)?.toDouble() ?? 0,  // NEW
+        paymentToMunicipality:
+            (json['payment_to_municipality'] as num?)?.toDouble() ?? 0, // NEW
         notes: json['notes'] as String?,
         isLocked: json['is_locked'] as bool? ?? false,
         ratesFrequency: RatesFrequency.values.firstWhere(
@@ -185,7 +247,7 @@ class MonthlyExpense {
         'rates_taxes': ratesTaxes,
         'annual_levy': annualLevy,
         'payment_received': paymentReceived,
-        'payment_to_municipality': paymentToMunicipality,  // NEW
+        'payment_to_municipality': paymentToMunicipality, // NEW
         'notes': notes,
         // is_locked intentionally omitted — managed by the DB schema migration
         'rates_frequency': ratesFrequency.name,
@@ -199,7 +261,7 @@ class MonthlyExpense {
     double? ratesTaxes,
     double? annualLevy,
     double? paymentReceived,
-    double? paymentToMunicipality,  // NEW
+    double? paymentToMunicipality, // NEW
     String? notes,
     bool? isLocked,
     RatesFrequency? ratesFrequency,
@@ -216,7 +278,8 @@ class MonthlyExpense {
         ratesTaxes: ratesTaxes ?? this.ratesTaxes,
         annualLevy: annualLevy ?? this.annualLevy,
         paymentReceived: paymentReceived ?? this.paymentReceived,
-        paymentToMunicipality: paymentToMunicipality ?? this.paymentToMunicipality,  // NEW
+        paymentToMunicipality:
+            paymentToMunicipality ?? this.paymentToMunicipality, // NEW
         notes: notes ?? this.notes,
         isLocked: isLocked ?? this.isLocked,
         ratesFrequency: ratesFrequency ?? this.ratesFrequency,
@@ -231,7 +294,6 @@ enum CostCategory {
   cleaning,
   garden,
   maintenance,
-  levies,
   insurance,
   custom;
 
@@ -243,8 +305,6 @@ enum CostCategory {
         return 'Garden Service';
       case CostCategory.maintenance:
         return 'Maintenance';
-      case CostCategory.levies:
-        return 'Body Corporate Levies';
       case CostCategory.insurance:
         return 'Insurance';
       case CostCategory.custom:
@@ -260,8 +320,6 @@ enum CostCategory {
         return 'Garden and landscaping services';
       case CostCategory.maintenance:
         return 'General repairs and maintenance';
-      case CostCategory.levies:
-        return 'Monthly body corporate or HOA fees';
       case CostCategory.insurance:
         return 'Property insurance premiums';
       case CostCategory.custom:
@@ -277,12 +335,40 @@ enum CostCategory {
         return '🌿';
       case CostCategory.maintenance:
         return '🔧';
-      case CostCategory.levies:
-        return '🏢';
       case CostCategory.insurance:
         return '🛡️';
       case CostCategory.custom:
         return '📋';
+    }
+  }
+
+  IconData get icon {
+    switch (this) {
+      case CostCategory.cleaning:
+        return Icons.cleaning_services;
+      case CostCategory.garden:
+        return Icons.yard;
+      case CostCategory.maintenance:
+        return Icons.build;
+      case CostCategory.insurance:
+        return Icons.security;
+      case CostCategory.custom:
+        return Icons.receipt_long;
+    }
+  }
+
+  Color get color {
+    switch (this) {
+      case CostCategory.cleaning:
+        return const Color(0xFF42A5F5);
+      case CostCategory.garden:
+        return const Color(0xFF66BB6A);
+      case CostCategory.maintenance:
+        return const Color(0xFFAB47BC);
+      case CostCategory.insurance:
+        return const Color(0xFFEF5350);
+      case CostCategory.custom:
+        return const Color(0xFF78909C);
     }
   }
 
@@ -302,7 +388,9 @@ class RunningCost {
   final CostCategory category;
   final String? description;
   final double amount;
+  final CostFrequency frequency;
   final DateTime startDate;
+  final DateTime? endDate;
 
   RunningCost({
     this.id,
@@ -312,8 +400,11 @@ class RunningCost {
     required this.category,
     this.description,
     required this.amount,
+    CostFrequency? frequency,
     DateTime? startDate,
-  }) : startDate = startDate ?? DateTime.now();
+    this.endDate,
+  })  : frequency = frequency ?? CostFrequency.monthly,
+        startDate = startDate ?? DateTime.now();
 
   factory RunningCost.fromJson(Map<String, dynamic> json) => RunningCost(
         id: json['id'] as String?,
@@ -323,8 +414,14 @@ class RunningCost {
         category: CostCategory.fromString(json['category'] as String),
         description: json['description'] as String?,
         amount: (json['amount'] as num).toDouble(),
+        frequency: json['frequency'] != null
+            ? costFrequencyFromString(json['frequency'] as String)
+            : null, // Will default to monthly in constructor
         startDate: json['start_date'] != null
             ? DateTime.parse(json['start_date'] as String)
+            : null,
+        endDate: json['end_date'] != null
+            ? DateTime.parse(json['end_date'] as String)
             : null,
       );
 
@@ -335,8 +432,27 @@ class RunningCost {
         'category': category.name,
         'description': description,
         'amount': amount,
+        'frequency': frequency.value,
         'start_date': startDate.toIso8601String(),
+        'end_date': endDate?.toIso8601String(),
       };
+
+  double get monthlyEquivalent {
+    switch (frequency) {
+      case CostFrequency.onceOff:
+        return amount; // One-time cost, show as-is
+      case CostFrequency.daily:
+        return amount * 30.44; // Average days per month
+      case CostFrequency.weekly:
+        return amount * 4.33; // Average weeks per month
+      case CostFrequency.monthly:
+        return amount;
+      case CostFrequency.yearly:
+        return amount / 12;
+      case CostFrequency.custom:
+        return amount;
+    }
+  }
 }
 
 // ─── models/site_evaluation.dart ─────────────────────────────────────────────
@@ -394,7 +510,7 @@ class RentPeriod {
     required this.rentalAmount,
     required this.createdAt,
   });
-  
+
   RentPeriod copyWith({
     String? id,
     String? propertyId,

@@ -13,21 +13,39 @@ class EntryScreen extends StatefulWidget {
   State<EntryScreen> createState() => _EntryScreenState();
 }
 
-class _EntryScreenState extends State<EntryScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabs;
-  DateTime _selectedDate = DateTime(DateTime.now().year, DateTime.now().month);
+class _EntryScreenState extends State<EntryScreen> {
+  late DateTime _selectedDate;
+  late PageController _pageController;
+  static const int _totalMonths = 240; // 20 years range
+  static const int _centerIndex = _totalMonths ~/ 2; // Center point
 
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 2, vsync: this);
+    _selectedDate = DateTime(DateTime.now().year, DateTime.now().month);
+    _pageController = PageController(initialPage: _centerIndex);
   }
 
   @override
   void dispose() {
-    _tabs.dispose();
+    _pageController.dispose();
     super.dispose();
+  }
+
+  int _dateToIndex(DateTime date) {
+    final now = DateTime.now();
+    final nowIndex = now.year * 12 + (now.month - 1); // Zero-based month
+    final dateIndex = date.year * 12 + (date.month - 1); // Zero-based month
+    return _centerIndex + (dateIndex - nowIndex);
+  }
+
+  DateTime _indexToDate(int index) {
+    final now = DateTime.now();
+    final nowIndex = now.year * 12 + (now.month - 1); // Zero-based month
+    final dateIndex = nowIndex + (index - _centerIndex);
+    final year = dateIndex ~/ 12;
+    final month = (dateIndex % 12) + 1; // Convert back to 1-based month
+    return DateTime(year, month);
   }
 
   Future<void> _pickMonth() async {
@@ -35,7 +53,39 @@ class _EntryScreenState extends State<EntryScreen>
       context: context,
       builder: (ctx) => _MonthYearPickerDialog(initial: _selectedDate),
     );
-    if (picked != null) setState(() => _selectedDate = picked);
+    if (picked != null) {
+      final targetIndex = _dateToIndex(picked);
+      setState(() => _selectedDate = picked);
+      _pageController.animateToPage(
+        targetIndex,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _previousMonth() {
+    final newDate = DateTime(
+      _selectedDate.month == 1 ? _selectedDate.year - 1 : _selectedDate.year,
+      _selectedDate.month == 1 ? 12 : _selectedDate.month - 1,
+    );
+    setState(() => _selectedDate = newDate);
+    _pageController.previousPage(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  void _nextMonth() {
+    final newDate = DateTime(
+      _selectedDate.month == 12 ? _selectedDate.year + 1 : _selectedDate.year,
+      _selectedDate.month == 12 ? 1 : _selectedDate.month + 1,
+    );
+    setState(() => _selectedDate = newDate);
+    _pageController.nextPage(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
   }
 
   @override
@@ -54,53 +104,32 @@ class _EntryScreenState extends State<EntryScreen>
         return Scaffold(
           appBar: AppBar(
             title: const Text('Add / Edit Entry'),
-            bottom: TabBar(
-              controller: _tabs,
-              tabs: const [
-                Tab(text: 'Monthly Expenses'),
-                Tab(text: 'Running Costs'),
-              ],
-            ),
           ),
           body: Column(
             children: [
               _buildMonthSelector(),
               Expanded(
-                child: TabBarView(
-                  controller: _tabs,
-                  children: [
-                    _MonthlyExpenseForm(
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: _totalMonths,
+                  onPageChanged: (index) {
+                    final newDate = _indexToDate(index);
+                    setState(() => _selectedDate = newDate);
+                  },
+                  itemBuilder: (context, index) {
+                    final date = _indexToDate(index);
+
+                    return _MonthlyExpenseForm(
                       key: ValueKey(
-                          '${prov.selectedProperty!.id}_${_selectedDate.year}_${_selectedDate.month}'),
+                          '${prov.selectedProperty!.id}_${date.year}_${date.month}'),
                       propertyId: prov.selectedProperty!.id,
-                      year: _selectedDate.year,
-                      month: _selectedDate.month,
-                    ),
-                    _RunningCostsTab(
-                      propertyId: prov.selectedProperty!.id,
-                      year: _selectedDate.year,
-                      month: _selectedDate.month,
-                    ),
-                  ],
+                      year: date.year,
+                      month: date.month,
+                    );
+                  },
                 ),
               ),
             ],
-          ),
-          floatingActionButton: ListenableBuilder(
-            listenable: _tabs,
-            builder: (ctx, _) => _tabs.index == 1
-                ? FloatingActionButton(
-                    onPressed: () => showDialog(
-                      context: context,
-                      builder: (_) => AddRunningCostDialog(
-                        propertyId: prov.selectedProperty!.id,
-                        year: _selectedDate.year,
-                        month: _selectedDate.month,
-                      ),
-                    ),
-                    child: const Icon(Icons.add),
-                  )
-                : const SizedBox.shrink(),
           ),
         );
       },
@@ -113,14 +142,7 @@ class _EntryScreenState extends State<EntryScreen>
       child: Row(
         children: [
           IconButton(
-            onPressed: () => setState(() {
-              _selectedDate = DateTime(
-                _selectedDate.month == 1
-                    ? _selectedDate.year - 1
-                    : _selectedDate.year,
-                _selectedDate.month == 1 ? 12 : _selectedDate.month - 1,
-              );
-            }),
+            onPressed: _previousMonth,
             icon: const Icon(Icons.chevron_left),
           ),
           Expanded(
@@ -137,14 +159,7 @@ class _EntryScreenState extends State<EntryScreen>
             ),
           ),
           IconButton(
-            onPressed: () => setState(() {
-              _selectedDate = DateTime(
-                _selectedDate.month == 12
-                    ? _selectedDate.year + 1
-                    : _selectedDate.year,
-                _selectedDate.month == 12 ? 1 : _selectedDate.month + 1,
-              );
-            }),
+            onPressed: _nextMonth,
             icon: const Icon(Icons.chevron_right),
           ),
         ],
@@ -194,6 +209,17 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
     _loadExisting();
   }
 
+  @override
+  void didUpdateWidget(_MonthlyExpenseForm oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reload data if property or month changed
+    if (oldWidget.propertyId != widget.propertyId ||
+        oldWidget.year != widget.year ||
+        oldWidget.month != widget.month) {
+      _loadExisting();
+    }
+  }
+
   void _loadExisting() {
     final prov = context.read<PropertyProvider>();
     final existing = prov.getExpenseForMonth(widget.year, widget.month);
@@ -240,21 +266,57 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
         interest: _interest,
         ratesTaxes: _ratesTaxes,
         paymentReceived: _paymentReceived,
-        paymentToMunicipality: _paymentToMunicipality, // NEW
+        paymentToMunicipality: _paymentToMunicipality,
         notes: _notes.isNotEmpty ? _notes : null,
         ratesFrequency: _ratesFrequency,
         ratesStartDate: _ratesStartDate,
       );
       final saved = await prov.upsertExpense(expense);
+
+      // If annual rates, auto-populate other months in the year
+      // Note: We save the FULL annual amount to all months with annually frequency
+      // The effectiveMonthlyRates getter will divide by 12 for display/calculation
+      if (_ratesFrequency == RatesFrequency.annually && _ratesTaxes > 0) {
+        for (int m = 1; m <= 12; m++) {
+          if (m == widget.month) continue; // Skip current month (already saved)
+
+          // Check if month already has rates data
+          final existingMonth = prov.getExpenseForMonth(widget.year, m);
+          if (existingMonth != null && existingMonth.ratesTaxes > 0) {
+            continue; // Skip months that already have data
+          }
+
+          // Create/update expense for this month with the SAME annual amount
+          final monthExpense = MonthlyExpense(
+            propertyId: widget.propertyId,
+            year: widget.year,
+            month: m,
+            water: existingMonth?.water ?? 0,
+            electricity: existingMonth?.electricity ?? 0,
+            interest: existingMonth?.interest ?? 0,
+            ratesTaxes: _ratesTaxes, // Save full annual amount
+            paymentReceived: existingMonth?.paymentReceived ??
+                prov.getRentForMonth(widget.year, m) ??
+                0,
+            paymentToMunicipality: existingMonth?.paymentToMunicipality ?? 0,
+            ratesFrequency: RatesFrequency.annually, // Same frequency
+            ratesStartDate: _ratesStartDate,
+          );
+          await prov.upsertExpense(monthExpense);
+        }
+      }
+
       if (mounted) {
         setState(() {
           _existingExpense = saved;
-          _isEditing = false; // Switch back to info view after save
+          _isEditing = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Saved successfully'),
-            backgroundColor: Color(0xFF6B8E6B),
+          SnackBar(
+            content: Text(_ratesFrequency == RatesFrequency.annually
+                ? 'Saved! Annual rates divided across all months in $widget.year'
+                : 'Saved successfully'),
+            backgroundColor: const Color(0xFF6B8E6B),
           ),
         );
       }
@@ -269,25 +331,6 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
       }
     }
     if (mounted) setState(() => _saving = false);
-  }
-
-  void _cancelEditing() {
-    if (_existingExpense == null) {
-      // No existing data, return to empty state
-      setState(() => _isEditing = false);
-    } else {
-      // Has existing data, return to info view
-      setState(() => _isEditing = false);
-      // Reset form values to existing data
-      _water = _existingExpense!.water;
-      _electricity = _existingExpense!.electricity;
-      _interest = _existingExpense!.interest;
-      _ratesTaxes = _existingExpense!.ratesTaxes;
-      _paymentReceived = _existingExpense!.paymentReceived;
-      _notes = _existingExpense!.notes ?? '';
-      _ratesFrequency = _existingExpense!.ratesFrequency;
-      _ratesStartDate = _existingExpense!.ratesStartDate;
-    }
   }
 
   @override
@@ -307,8 +350,6 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
   // ─── Empty State (NEW IMPLEMENTATION) ────────────────────────────────────
 
   Widget _buildEmptyState() {
-    final monthLabel =
-        DateFormat('MMMM yyyy').format(DateTime(widget.year, widget.month));
     final isFutureMonth = DateTime(widget.year, widget.month)
         .isAfter(DateTime(DateTime.now().year, DateTime.now().month));
 
@@ -350,8 +391,8 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
             const SizedBox(height: 24),
             Text(
               isFutureMonth
-                  ? 'No data for $monthLabel'
-                  : 'No expense data recorded\nfor $monthLabel yet',
+                  ? 'No data for this month'
+                  : 'No expense data recorded\nfor this month yet',
               style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
@@ -422,47 +463,12 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
     final total = e.water + e.electricity + e.interest + effectiveRates;
     final balanceAfterMuni =
         e.paymentReceived - total - e.paymentToMunicipality; // NEW
-    final monthLabel =
-        DateFormat('MMMM yyyy').format(DateTime(widget.year, widget.month));
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header row
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      monthLabel,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    Text(
-                      'Saved entry',
-                      style: TextStyle(
-                        color: Theme.of(context).textTheme.bodySmall?.color,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              OutlinedButton.icon(
-                onPressed: () => setState(() => _isEditing = true),
-                icon: const Icon(Icons.edit_outlined, size: 16),
-                label: const Text('Edit'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
           // Utilities section
           _infoSectionLabel('Utilities'),
           const SizedBox(height: 12),
@@ -479,14 +485,12 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
           const SizedBox(height: 12),
           _infoCard([
             _infoRow(
-              e.ratesFrequency == RatesFrequency.annually
-                  ? 'Rates & Taxes (annual ÷12)'
-                  : 'Rates & Taxes',
+              'Rates & Taxes',
               effectiveRates,
               const Color(0xFFAB47BC),
               Icons.account_balance_outlined,
               subtitle: e.ratesFrequency == RatesFrequency.annually
-                  ? 'Annual amount: ${formatZAR(e.ratesTaxes)}'
+                  ? '(Annual: ${formatZAR(e.ratesTaxes)})'
                   : null,
             ),
             _infoRow(
@@ -544,6 +548,20 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
               child: Text(e.notes!),
             ),
           ],
+          const SizedBox(height: 24),
+
+          // Edit button at bottom
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => setState(() => _isEditing = true),
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Edit Entry'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ),
           const SizedBox(height: 40),
         ],
       ),
@@ -697,29 +715,13 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
                             size: 20),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Editing Entry',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 14,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                              ),
-                              Text(
-                                DateFormat('MMMM yyyy').format(
-                                    DateTime(widget.year, widget.month)),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.color,
-                                ),
-                              ),
-                            ],
+                          child: Text(
+                            'Editing entry',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
                           ),
                         ),
                         TextButton(
@@ -1165,6 +1167,10 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
   }
 
   Widget _buildRatesSection() {
+    final monthlyEquivalent = _ratesFrequency == RatesFrequency.annually
+        ? _ratesTaxes / 12
+        : _ratesTaxes;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1181,8 +1187,56 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
                 : 'Monthly property rates/municipal taxes',
           ),
         ),
+        // Show monthly breakdown when annual is selected
+        if (_ratesFrequency == RatesFrequency.annually && _ratesTaxes > 0) ...[
+          const SizedBox(height: 12),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.calculate_outlined,
+                        size: 18, color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Monthly equivalent:',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                Text(
+                  formatZAR(monthlyEquivalent),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 12),
         Container(
+          margin: const EdgeInsets.symmetric(horizontal: 20),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
@@ -1202,7 +1256,7 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
               ),
               const SizedBox(height: 4),
               Text(
-                'How do you pay rates for this property this year?',
+                'How are rates paid for this property?',
                 style: TextStyle(
                   fontSize: 12,
                   color: Theme.of(context).textTheme.bodySmall?.color,
@@ -1223,61 +1277,74 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
                   ),
                 ],
                 selected: {_ratesFrequency},
-                onSelectionChanged: (set) {
+                onSelectionChanged: (set) async {
+                  final newFrequency = set.first;
+
+                  // Check if switching to annually with existing monthly data
+                  if (newFrequency == RatesFrequency.annually &&
+                      _ratesTaxes > 0) {
+                    final prov = context.read<PropertyProvider>();
+                    final existingMonths = prov.expenses
+                        .where((e) => e.year == widget.year && e.ratesTaxes > 0)
+                        .toList();
+
+                    if (existingMonths.isNotEmpty) {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Existing Monthly Data'),
+                          content: Text(
+                            'You have rates data entered for ${existingMonths.length} month(s) in $widget.year. '
+                            'Switching to annual will use the annual amount divided across all months. '
+                            'Continue?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.of(ctx).pop(true),
+                              child: const Text('Continue'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed != true) return;
+                    }
+                  }
+
                   setState(() {
-                    _ratesFrequency = set.first;
-                    _ratesTaxes = 0; // Reset amount when switching frequency
+                    _ratesFrequency = newFrequency;
+                    // When switching to annual, divide by 12 to get approximate annual
+                    // When switching to monthly, multiply by 12 to get approximate monthly
+                    if (_ratesTaxes > 0) {
+                      _ratesTaxes = _ratesFrequency == RatesFrequency.annually
+                          ? _ratesTaxes * 12
+                          : _ratesTaxes / 12;
+                    }
                   });
                 },
               ),
-              if (_ratesFrequency == RatesFrequency.annually) ...[
-                const SizedBox(height: 10),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color:
-                        Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline,
-                          size: 14,
-                          color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Enter the full annual amount. '
-                          'Monthly calculations will use ${_ratesTaxes > 0 ? formatZAR(_ratesTaxes / 12) : 'R0.00'}/month.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
               const SizedBox(height: 10),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.date_range, size: 20),
-                title: const Text('Rates Start Date',
+                title: const Text('Rates Start Month',
                     style: TextStyle(fontSize: 14)),
                 subtitle: Text(
                   _ratesStartDate != null
-                      ? DateFormat('d MMMM yyyy').format(_ratesStartDate!)
+                      ? DateFormat('MMMM yyyy').format(_ratesStartDate!)
                       : 'Not set (defaults to this month)',
                   style: const TextStyle(fontSize: 12),
                 ),
                 trailing: TextButton(
                   onPressed: () async {
-                    final date = await showDatePicker(
+                    final date = await showDialog<DateTime>(
                       context: context,
-                      initialDate: _ratesStartDate ?? DateTime.now(),
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime.now(),
+                      builder: (ctx) => _MonthYearPickerDialog(
+                        initial: _ratesStartDate ?? DateTime.now(),
+                      ),
                     );
                     if (date != null) {
                       setState(() => _ratesStartDate = date);
@@ -1386,297 +1453,6 @@ class _EditableCurrencyFieldState extends State<_EditableCurrencyField> {
           widget.onChanged(parsed ?? 0);
         },
       ),
-    );
-  }
-}
-
-// ─── Running Costs Tab ────────────────────────────────────────────────────────
-
-class _RunningCostsTab extends StatelessWidget {
-  final String propertyId;
-  final int year;
-  final int month;
-
-  const _RunningCostsTab({
-    required this.propertyId,
-    required this.year,
-    required this.month,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<PropertyProvider>(
-      builder: (context, prov, _) {
-        final costs = prov.getRunningCostsForMonth(year, month);
-        final total = costs.fold(0.0, (s, c) => s + c.amount);
-
-        return Column(
-          children: [
-            if (costs.isNotEmpty)
-              Container(
-                margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Theme.of(context).dividerColor),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text('Total Running Costs',
-                        style: TextStyle(fontWeight: FontWeight.w600)),
-                    Text(
-                      formatZAR(total),
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: Theme.of(context).colorScheme.primary,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            Expanded(
-              child: costs.isEmpty
-                  ? const EmptyState(
-                      message: 'No running costs this month.\nTap + to add.',
-                      icon: Icons.receipt_long_outlined,
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(20),
-                      itemCount: costs.length,
-                      itemBuilder: (ctx, i) => _CostItem(
-                        cost: costs[i],
-                        onDelete: () => prov.deleteRunningCost(costs[i].id!),
-                      ),
-                    ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _CostItem extends StatelessWidget {
-  final RunningCost cost;
-  final VoidCallback onDelete;
-
-  const _CostItem({required this.cost, required this.onDelete});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).dividerColor),
-      ),
-      child: Row(
-        children: [
-          Text(
-            cost.category.emoji,
-            style: const TextStyle(fontSize: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  cost.description ?? cost.category.label,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                Text(
-                  cost.category.label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).textTheme.bodySmall?.color,
-                  ),
-                ),
-                Text(
-                  'Started ${DateFormat('MMM yyyy').format(cost.startDate)}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Text(
-            formatZAR(cost.amount),
-            style: TextStyle(
-              fontWeight: FontWeight.w700,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-          const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.delete_outline, size: 18),
-            color: Colors.grey,
-            onPressed: () async {
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Delete cost?'),
-                  content: const Text('This cannot be undone.'),
-                  actions: [
-                    TextButton(
-                        onPressed: () => Navigator.pop(ctx, false),
-                        child: const Text('Cancel')),
-                    TextButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Delete',
-                            style: TextStyle(color: Colors.redAccent))),
-                  ],
-                ),
-              );
-              if (confirmed == true) onDelete();
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─── Add Running Cost dialog ──────────────────────────────────────────────────
-
-class AddRunningCostDialog extends StatefulWidget {
-  final String propertyId;
-  final int year;
-  final int month;
-
-  const AddRunningCostDialog({
-    super.key,
-    required this.propertyId,
-    required this.year,
-    required this.month,
-  });
-
-  @override
-  State<AddRunningCostDialog> createState() => _AddRunningCostDialogState();
-}
-
-class _AddRunningCostDialogState extends State<AddRunningCostDialog> {
-  CostCategory _category = CostCategory.cleaning;
-  String _description = '';
-  double _amount = 0;
-  DateTime _startDate = DateTime.now();
-  bool _saving = false;
-
-  Future<void> _save() async {
-    if (_amount <= 0) return;
-    setState(() => _saving = true);
-    try {
-      await context.read<PropertyProvider>().addRunningCost(
-            RunningCost(
-              propertyId: widget.propertyId,
-              year: widget.year,
-              month: widget.month,
-              category: _category,
-              description: _description.isNotEmpty ? _description : null,
-              amount: _amount,
-              startDate: _startDate,
-            ),
-          );
-      if (mounted) Navigator.pop(context);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
-      }
-    }
-    if (mounted) setState(() => _saving = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Add Running Cost'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            DropdownButtonFormField<CostCategory>(
-              initialValue: _category,
-              decoration: const InputDecoration(labelText: 'Category'),
-              items: CostCategory.values
-                  .map((c) => DropdownMenuItem(
-                        value: c,
-                        child: Row(
-                          children: [
-                            Text(c.emoji),
-                            const SizedBox(width: 8),
-                            Text(c.label),
-                          ],
-                        ),
-                      ))
-                  .toList(),
-              onChanged: (v) => setState(() => _category = v!),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _category.description,
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).textTheme.bodySmall?.color,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              decoration: const InputDecoration(
-                labelText: 'Description (optional)',
-                hintText: 'Specific details about this cost',
-              ),
-              onChanged: (v) => _description = v,
-            ),
-            const SizedBox(height: 12),
-            CurrencyField(
-              label: 'Monthly Amount',
-              initialValue: _amount,
-              onChanged: (v) => _amount = v,
-            ),
-            const SizedBox(height: 12),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.date_range),
-              title: const Text('Start Date'),
-              subtitle: Text(
-                'Started: ${DateFormat('d MMM yyyy').format(_startDate)}',
-              ),
-              trailing: TextButton(
-                onPressed: () async {
-                  final date = await showDatePicker(
-                    context: context,
-                    initialDate: _startDate,
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime.now(),
-                  );
-                  if (date != null) setState(() => _startDate = date);
-                },
-                child: const Text('Change'),
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: _saving ? null : _save,
-          child: const Text('Add'),
-        ),
-      ],
     );
   }
 }

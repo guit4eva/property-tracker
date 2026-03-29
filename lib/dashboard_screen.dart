@@ -106,7 +106,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Tooltip(
               message: 'Offline - changes will sync when online',
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.orange.withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(12),
@@ -226,7 +227,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     color: Theme.of(context).colorScheme.primary.withAlpha(20),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                        color: Theme.of(context).colorScheme.primary.withAlpha(60)),
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withAlpha(60)),
                   ),
                   child: Text(
                     formatZAR(prop.currentValue),
@@ -253,7 +257,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 'running costs',
                 Icons.receipt_long,
               ),
-              const Spacer(),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
               GestureDetector(
                 onTap: () => Navigator.push(
                   context,
@@ -261,7 +269,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 child: Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(20),
@@ -271,14 +279,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.trending_up,
-                          size: 12,
+                          size: 14,
                           color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 6),
                       Text(
                         'Evaluations',
                         style: TextStyle(
-                          fontSize: 11,
-                          color: Theme.of(context).textTheme.bodySmall?.color,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                     ],
@@ -322,7 +331,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           physics: const NeverScrollableScrollPhysics(),
           mainAxisSpacing: 12,
           crossAxisSpacing: 12,
-          childAspectRatio: 1.6,
+          childAspectRatio: 1.5,
           children: [
             StatCard(
               label: 'Total Water',
@@ -499,8 +508,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           totals['interest']!),
                       _buildLegend(
                           'Rates', const Color(0xFFAB47BC), totals['rates']!),
-                      _buildLegend(
-                          'Running', const Color(0xFF6B8E6B), totals['running']!),
+                      _buildLegend('Running', const Color(0xFF6B8E6B),
+                          totals['running']!),
                     ],
                   ),
                 ],

@@ -2,22 +2,42 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'providers/property_provider.dart';
 import 'screens/home_screen.dart';
 
-// ─── REPLACE THESE WITH YOUR SUPABASE CREDENTIALS ───────────────────────────
-const String supabaseUrl = 'https://rdpsgxhhrrdebmftjpim.supabase.co';
-const String supabaseAnonKey = 'sb_publishable_Txhsx2DRHnmlkXhPWu-1Ug_UwePGlZN';
+// ─── Supabase credentials from .env file ────────────────────────────────────
+// Make sure to update the .env file with your actual credentials
 // ─────────────────────────────────────────────────────────────────────────────
+
+String? _supabaseInitError;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Supabase.initialize(
-    url: supabaseUrl,
-    anonKey: supabaseAnonKey,
-  );
+  // Load environment variables
+  await dotenv.load(fileName: '.env');
+
+  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
+  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+
+  if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
+    _supabaseInitError =
+        'Supabase credentials not found. Please check your .env file.';
+    debugPrint('ERROR: $_supabaseInitError');
+  } else {
+    try {
+      await Supabase.initialize(
+        url: supabaseUrl,
+        anonKey: supabaseAnonKey,
+      );
+      debugPrint('Supabase initialized successfully');
+    } catch (e) {
+      _supabaseInitError = 'Failed to initialize Supabase: $e';
+      debugPrint('ERROR: $_supabaseInitError');
+    }
+  }
 
   runApp(
     MultiProvider(
@@ -34,6 +54,66 @@ class PropertyTrackerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Show error screen if Supabase failed to initialize
+    if (_supabaseInitError != null) {
+      return MaterialApp(
+        title: 'Property Tracker - Error',
+        debugShowCheckedModeBanner: false,
+        theme: _buildLightTheme(),
+        home: Scaffold(
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.red,
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Supabase Configuration Error',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    _supabaseInitError!,
+                    style: const TextStyle(fontSize: 14),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'To fix this:',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          SizedBox(height: 8),
+                          Text('1. Go to https://app.supabase.com'),
+                          Text('2. Select your project'),
+                          Text('3. Go to Settings → API'),
+                          Text('4. Copy your Project URL and anon key'),
+                          Text('5. Update the .env file with these values'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return MaterialApp(
       title: 'Property Tracker',
       debugShowCheckedModeBanner: false,
