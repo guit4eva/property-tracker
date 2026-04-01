@@ -1,8 +1,10 @@
+import 'dart:developer' as dev;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'providers/property_provider.dart';
 import 'screens/home_screen.dart';
@@ -12,30 +14,66 @@ import 'screens/home_screen.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 String? _supabaseInitError;
+Map<String, String> _envConfig = {};
+
+// Logger that works in both debug and release mode
+void _log(String message, {String level = 'INFO'}) {
+  debugPrint('[$level] $message');
+  if (kReleaseMode) {
+    dev.log(message,
+        name: 'PropertyTracker', level: level == 'ERROR' ? 1000 : 500);
+  }
+}
+
+Future<Map<String, String>> _loadEnvFile() async {
+  final config = <String, String>{};
+  try {
+    final content = await rootBundle.loadString('.env');
+    final lines = content.split('\n');
+    for (var line in lines) {
+      line = line.trim();
+      if (line.isEmpty || line.startsWith('#')) continue;
+      final parts = line.split('=');
+      if (parts.length >= 2) {
+        final key = parts[0].trim();
+        final value = parts.skip(1).join('=').trim();
+        config[key] = value;
+      }
+    }
+    _log('.env file loaded successfully: ${config.length} entries');
+  } catch (e) {
+    _log('Failed to load .env file: $e', level: 'ERROR');
+  }
+  return config;
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Load environment variables
-  await dotenv.load(fileName: '.env');
+  // Load environment variables from .env file
+  _envConfig = await _loadEnvFile();
 
-  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
-  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+  final supabaseUrl = _envConfig['SUPABASE_URL'] ?? '';
+  final supabaseAnonKey = _envConfig['SUPABASE_ANON_KEY'] ?? '';
+
+  _log('SUPABASE_URL: ${supabaseUrl.isEmpty ? 'NOT SET' : 'SET'}');
+  _log(
+      'SUPABASE_ANON_KEY: ${supabaseAnonKey.isEmpty ? 'NOT SET' : 'SET (hidden)'}');
 
   if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
     _supabaseInitError =
         'Supabase credentials not found. Please check your .env file.';
-    debugPrint('ERROR: $_supabaseInitError');
+    _log('$_supabaseInitError', level: 'ERROR');
   } else {
     try {
       await Supabase.initialize(
         url: supabaseUrl,
         anonKey: supabaseAnonKey,
       );
-      debugPrint('Supabase initialized successfully');
+      _log('Supabase initialized successfully');
     } catch (e) {
       _supabaseInitError = 'Failed to initialize Supabase: $e';
-      debugPrint('ERROR: $_supabaseInitError');
+      _log('$_supabaseInitError', level: 'ERROR');
     }
   }
 

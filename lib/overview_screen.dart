@@ -63,7 +63,9 @@ extension ChartViewExt on ChartView {
 }
 
 class OverviewScreen extends StatefulWidget {
-  const OverviewScreen({super.key});
+  final ChartView? initialView;
+
+  const OverviewScreen({super.key, this.initialView});
 
   @override
   State<OverviewScreen> createState() => _OverviewScreenState();
@@ -74,7 +76,23 @@ class _OverviewScreenState extends State<OverviewScreen> {
   int _yearFilter = 0; // 0 = all
   int _selectedYear = DateTime.now().year;
   bool _showAllProperties = false;
-  String _selectedTab = 'charts'; // 'charts' or 'summary'
+  String _selectedTab = 'summary'; // 'charts' or 'summary'
+  late PageController _yearPageController;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialView != null) {
+      _view = widget.initialView!;
+    }
+    _yearPageController = PageController(initialPage: 0);
+  }
+
+  @override
+  void dispose() {
+    _yearPageController.dispose();
+    super.dispose();
+  }
 
   String formatCompact(double value) {
     if (value >= 1000000) {
@@ -108,24 +126,15 @@ class _OverviewScreenState extends State<OverviewScreen> {
         final years = allData.map((m) => m['year'] as int).toSet().toList()
           ..sort();
 
-        if (years.isNotEmpty && !years.contains(_selectedYear)) {
+        // Only auto-select year if _selectedYear is not set (0) and not in list
+        // Allow 0 (All Time) to remain selected
+        if (years.isNotEmpty &&
+            _selectedYear != 0 &&
+            !years.contains(_selectedYear)) {
           _selectedYear = years.last;
         }
 
         return Scaffold(
-          appBar: AppBar(
-            title: Text(_showAllProperties && hasMultipleProperties
-                ? 'All Properties Overview'
-                : 'Overview'),
-            actions: [
-              if (_selectedTab == 'summary')
-                IconButton(
-                  icon: const Icon(Icons.copy_outlined),
-                  tooltip: 'Copy CSV',
-                  onPressed: () => _copyCSV(context, prov),
-                ),
-            ],
-          ),
           body: Column(
             children: [
               // Tab toggle
@@ -138,53 +147,6 @@ class _OverviewScreenState extends State<OverviewScreen> {
                 ),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: InkWell(
-                        onTap: () => setState(() => _selectedTab = 'charts'),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: _selectedTab == 'charts'
-                                ? Theme.of(context)
-                                    .colorScheme
-                                    .primary
-                                    .withValues(alpha: 0.15)
-                                : null,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.bar_chart,
-                                size: 18,
-                                color: _selectedTab == 'charts'
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(context)
-                                        .textTheme
-                                        .bodySmall
-                                        ?.color,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'Charts',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14,
-                                  color: _selectedTab == 'charts'
-                                      ? Theme.of(context).colorScheme.primary
-                                      : Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.color,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
                     Expanded(
                       child: InkWell(
                         onTap: () => setState(() => _selectedTab = 'summary'),
@@ -232,6 +194,53 @@ class _OverviewScreenState extends State<OverviewScreen> {
                         ),
                       ),
                     ),
+                    Expanded(
+                      child: InkWell(
+                        onTap: () => setState(() => _selectedTab = 'charts'),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _selectedTab == 'charts'
+                                ? Theme.of(context)
+                                    .colorScheme
+                                    .primary
+                                    .withValues(alpha: 0.15)
+                                : null,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.bar_chart,
+                                size: 18,
+                                color: _selectedTab == 'charts'
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context)
+                                        .textTheme
+                                        .bodySmall
+                                        ?.color,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Graphs',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                  color: _selectedTab == 'charts'
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.color,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -265,8 +274,6 @@ class _OverviewScreenState extends State<OverviewScreen> {
           ],
           _buildChartTypeSelector(),
           const SizedBox(height: 20),
-          _buildYearFilter(years),
-          const SizedBox(height: 20),
           _buildChart(prov, allData),
           const SizedBox(height: 24),
           _buildLegend(prov),
@@ -283,19 +290,18 @@ class _OverviewScreenState extends State<OverviewScreen> {
     final yearData = _selectedYear == 0
         ? allData // All time
         : allData.where((m) => m['year'] == _selectedYear).toList();
+    final displayYears = [0, ...years];
+    final currentIndex = displayYears.indexOf(_selectedYear);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 80),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 80),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 16),
           if (hasMultipleProperties) ...[
             _buildPropertyScopeToggle(prov),
             const SizedBox(height: 16),
           ],
-          _buildYearSelector(years),
-          const SizedBox(height: 16),
           _buildYearTotalsCard(yearData),
           const SizedBox(height: 16),
           _buildAnnualRatesOverview(prov),
@@ -410,61 +416,145 @@ class _OverviewScreenState extends State<OverviewScreen> {
   }
 
   Widget _buildChartTypeSelector() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: ChartView.values.map((v) {
-        final selected = _view == v;
-        return FilterChip(
-          label: Text(v.label),
-          selected: selected,
-          onSelected: (s) => setState(() => _view = v),
-          selectedColor: v.color.withValues(alpha: 0.2),
-          checkmarkColor: v.color,
-          labelStyle: TextStyle(
-            color: selected
-                ? v.color
-                : Theme.of(context).textTheme.bodyMedium?.color,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).dividerColor),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<ChartView>(
+                value: _view,
+                isExpanded: true,
+                items: ChartView.values.map((v) {
+                  return DropdownMenuItem(
+                    value: v,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 12,
+                          decoration: BoxDecoration(
+                            color: v.color,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(v.label, style: const TextStyle(fontSize: 15)),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: (v) => setState(() => _view = v!),
+              ),
+            ),
           ),
-        );
-      }).toList(),
+        ],
+      ),
     );
   }
 
-  Widget _buildYearFilter(List<int> years) {
-    if (years.isEmpty) return const SizedBox.shrink();
+  void _showYearSelector() {
+    final prov = Provider.of<PropertyProvider>(context, listen: false);
+    final allData = _showAllProperties && prov.properties.length > 1
+        ? prov.allPropertiesMonthlyTotals
+        : prov.monthlyTotalsForChart;
+    final years = allData.map((m) => m['year'] as int).toSet().toList()..sort();
+    final displayYears = [0, ...years];
 
-    return Row(
-      children: [
-        Text('Year:',
-            style:
-                TextStyle(color: Theme.of(context).textTheme.bodySmall?.color)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                FilterChip(
-                  label: const Text('All'),
-                  selected: _yearFilter == 0,
-                  onSelected: (s) => setState(() => _yearFilter = 0),
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Select Year'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: displayYears.length,
+            itemBuilder: (ctx, i) {
+              final year = displayYears[i];
+              final isSelected = _yearFilter == year;
+              return ListTile(
+                selected: isSelected,
+                title: Text(
+                  year == 0 ? 'All Time' : '$year',
+                  style: TextStyle(
+                    fontWeight:
+                        isSelected ? FontWeight.w700 : FontWeight.normal,
+                  ),
                 ),
-                const SizedBox(width: 4),
-                ...years.map((y) => Padding(
-                      padding: const EdgeInsets.only(right: 4),
-                      child: FilterChip(
-                        label: Text(y.toString()),
-                        selected: _yearFilter == y,
-                        onSelected: (s) => setState(() => _yearFilter = y),
-                      ),
-                    )),
-              ],
-            ),
+                onTap: () {
+                  setState(() => _yearFilter = year);
+                  // Navigate to the correct page in the PageView
+                  _yearPageController.animateToPage(
+                    i,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                  );
+                  Navigator.pop(ctx);
+                },
+              );
+            },
           ),
         ),
-      ],
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSummaryYearSelector() {
+    final prov = Provider.of<PropertyProvider>(context, listen: false);
+    final allData = _showAllProperties && prov.properties.length > 1
+        ? prov.allPropertiesMonthlyTotals
+        : prov.monthlyTotalsForChart;
+    final years = allData.map((m) => m['year'] as int).toSet().toList()..sort();
+    final displayYears = [0, ...years];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Select Year'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: displayYears.length,
+            itemBuilder: (ctx, i) {
+              final year = displayYears[i];
+              final isSelected = _selectedYear == year;
+              return ListTile(
+                selected: isSelected,
+                title: Text(
+                  year == 0 ? 'All Time' : '$year',
+                  style: TextStyle(
+                    fontWeight:
+                        isSelected ? FontWeight.w700 : FontWeight.normal,
+                  ),
+                ),
+                onTap: () {
+                  setState(() => _selectedYear = year);
+                  Navigator.pop(ctx);
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -484,22 +574,61 @@ class _OverviewScreenState extends State<OverviewScreen> {
       );
     }
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Theme.of(context).dividerColor),
-      ),
-      child: AspectRatio(
-        aspectRatio: 1.6,
-        child: _buildLineChart(data),
-      ),
+    // Get unique years for navigation
+    final years = allData.map((m) => m['year'] as int).toSet().toList()..sort();
+    final displayYears = [0, ...years]; // 0 = All time
+    final currentIndex = displayYears.indexOf(_yearFilter);
+
+    return Column(
+      children: [
+        // Chart with swipe navigation
+        SizedBox(
+          height: 300,
+          child: PageView.builder(
+            controller: _yearPageController,
+            itemCount: displayYears.length,
+            onPageChanged: (index) {
+              setState(() => _yearFilter = displayYears[index]);
+            },
+            itemBuilder: (ctx, index) {
+              final year = displayYears[index];
+              var yearData = allData;
+              if (year != 0) {
+                yearData = allData.where((m) => m['year'] == year).toList();
+              }
+
+              if (yearData.isEmpty) {
+                return const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Text('No data for this period.'),
+                  ),
+                );
+              }
+
+              return Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Theme.of(context).dividerColor),
+                ),
+                child: AspectRatio(
+                  aspectRatio: 1.6,
+                  child: _buildLineChart(yearData),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildLineChart(List<Map<String, dynamic>> data) {
     final key = _view.key;
+    final dataPoints = data.length;
+    final isDense = dataPoints > 24; // More than 2 years of monthly data
 
     // Sort data by year and month
     final sortedData = List<Map<String, dynamic>>.from(data)
@@ -522,24 +651,24 @@ class _OverviewScreenState extends State<OverviewScreen> {
 
     final maxY = spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
     final minY = spots.map((s) => s.y).reduce((a, b) => a < b ? a : b);
-    final padding = (maxY - minY) * 0.1;
+    final padding = (maxY - minY) * 0.15;
+
+    // Calculate intervals based on data density
+    final bottomInterval = isDense
+        ? (dataPoints / 8).ceil().toDouble() // Show ~8 labels
+        : 1.0;
+    final leftInterval = maxY > 0 ? maxY / 4 : 1.0;
+    final showDots = dataPoints <= 36; // Show dots for 3 years or less
 
     return LineChart(
       LineChartData(
         gridData: FlGridData(
           show: true,
-          drawVerticalLine: true,
-          horizontalInterval: maxY > 0 ? maxY / 5 : 1,
-          verticalInterval: 1,
+          drawVerticalLine: false,
+          horizontalInterval: leftInterval,
           getDrawingHorizontalLine: (value) {
             return FlLine(
-              color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
-              strokeWidth: 1,
-            );
-          },
-          getDrawingVerticalLine: (value) {
-            return FlLine(
-              color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.15),
               strokeWidth: 1,
             );
           },
@@ -553,18 +682,23 @@ class _OverviewScreenState extends State<OverviewScreen> {
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 50,
+              reservedSize: 48,
+              interval: leftInterval,
               getTitlesWidget: (value, meta) {
                 if (value < 0) return const Text('');
+                String label;
+                if (value >= 1000000) {
+                  label = '${(value / 1000000).toStringAsFixed(0)}M';
+                } else if (value >= 1000) {
+                  label = '${(value / 1000).toStringAsFixed(0)}k';
+                } else {
+                  label = value.toStringAsFixed(0);
+                }
                 return Padding(
                   padding: const EdgeInsets.only(right: 4),
                   child: Text(
-                    value >= 1000
-                        ? '${(value / 1000).toStringAsFixed(0)}k'
-                        : value.toStringAsFixed(0),
-                    style: TextStyle(
-                        fontSize: 10,
-                        color: Theme.of(context).textTheme.bodySmall?.color),
+                    label,
+                    style: const TextStyle(fontSize: 9),
                   ),
                 );
               },
@@ -573,27 +707,38 @@ class _OverviewScreenState extends State<OverviewScreen> {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 30,
-              interval: spots.length > 6 ? 2 : 1,
+              reservedSize: 28,
+              interval: bottomInterval,
               getTitlesWidget: (value, meta) {
                 final index = value.toInt();
-                if (index < 0 || index >= sortedData.length)
+                if (index < 0 || index >= sortedData.length) {
                   return const Text('');
+                }
                 final item = sortedData[index];
-                final month =
-                    monthYear(item['year'] as int, item['month'] as int);
-                return Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Transform.rotate(
-                    angle: -0.3,
+                final year = item['year'] as int;
+                final month = item['month'] as int;
+
+                // For dense data, show year only at year boundaries
+                if (isDense) {
+                  if (month != 1) return const Text('');
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 4),
                     child: Text(
-                      month.length > 10 ? month.substring(0, 9) : month,
-                      style: TextStyle(
-                          fontSize: 9,
-                          color: Theme.of(context).textTheme.bodySmall?.color),
+                      '$year',
+                      style: const TextStyle(
+                          fontSize: 9, fontWeight: FontWeight.w600),
                     ),
-                  ),
-                );
+                  );
+                } else {
+                  // For sparse data, show short month name
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      monthName(month),
+                      style: const TextStyle(fontSize: 8),
+                    ),
+                  );
+                }
               },
             ),
           ),
@@ -608,25 +753,47 @@ class _OverviewScreenState extends State<OverviewScreen> {
             spots: spots,
             isCurved: true,
             color: _view.color,
-            barWidth: 3,
+            barWidth: isDense ? 2 : 2.5,
             isStrokeCapRound: true,
             dotData: FlDotData(
-              show: true,
+              show: showDots,
               getDotPainter: (spot, percent, barData, index) {
                 return FlDotCirclePainter(
-                  radius: 4,
+                  radius: 2.5,
                   color: _view.color,
-                  strokeWidth: 2,
+                  strokeWidth: 1.5,
                   strokeColor: Theme.of(context).colorScheme.surface,
                 );
               },
             ),
             belowBarData: BarAreaData(
               show: true,
-              color: _view.color.withValues(alpha: 0.1),
+              color: _view.color.withValues(alpha: 0.08),
             ),
           ),
         ],
+        lineTouchData: LineTouchData(
+          enabled: true,
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots.map((spot) {
+                final item = sortedData[spot.x.toInt()];
+                final month =
+                    monthYear(item['year'] as int, item['month'] as int);
+                final value = (item[key] as num).toDouble();
+                return LineTooltipItem(
+                  '$month\n${formatZAR(value)}',
+                  const TextStyle(
+                    color: Colors.black,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                );
+              }).toList();
+            },
+          ),
+          handleBuiltInTouches: true,
+        ),
       ),
     );
   }
@@ -695,56 +862,29 @@ class _OverviewScreenState extends State<OverviewScreen> {
   }
 
   // Summary view widgets
-  Widget _buildYearSelector(List<int> years) {
-    if (years.isEmpty) return const SizedBox.shrink();
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).dividerColor),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<int?>(
-          value: years.contains(_selectedYear) ? _selectedYear : null,
-          isExpanded: true,
-          hint: const Text('All Time', style: TextStyle(fontSize: 16)),
-          items: [
-            const DropdownMenuItem<int?>(
-              value: null,
-              child: Text('All Time',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            ),
-            ...years.map((y) => DropdownMenuItem(
-                  value: y,
-                  child:
-                      Text(y.toString(), style: const TextStyle(fontSize: 16)),
-                )),
-          ],
-          onChanged: (v) => setState(() => _selectedYear = v ?? 0),
-        ),
-      ),
-    );
-  }
 
   Widget _buildYearTotalsCard(List<Map<String, dynamic>> yearData) {
     double totalWater = 0,
         totalElec = 0,
         totalInterest = 0,
         totalRates = 0,
-        totalRunning = 0;
+        totalRunning = 0,
+        totalIncome = 0;
     for (final m in yearData) {
       totalWater += m['water'] as double;
       totalElec += m['electricity'] as double;
       totalInterest += m['interest'] as double;
       totalRates += m['rates'] as double;
       totalRunning += m['running'] as double;
+      totalIncome += m['paymentReceived'] as double? ?? 0;
     }
 
-    final title = _selectedYear == 0
-        ? 'All-Time Total Expenses'
-        : '$_selectedYear Total Expenses';
+    final totalExpenses =
+        totalWater + totalElec + totalInterest + totalRates + totalRunning;
+    final deficit = totalExpenses - totalIncome;
+
+    final title =
+        _selectedYear == 0 ? 'All-Time Summary' : '$_selectedYear Summary';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -775,11 +915,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            formatZAR(totalWater +
-                totalElec +
-                totalInterest +
-                totalRates +
-                totalRunning),
+            formatZAR(totalExpenses),
             style: const TextStyle(
               fontSize: 32,
               fontWeight: FontWeight.w800,
@@ -795,7 +931,39 @@ class _OverviewScreenState extends State<OverviewScreen> {
               _miniStat('Interest', totalInterest, const Color(0xFFEF5350)),
               _miniStat('Rates', totalRates, const Color(0xFFAB47BC)),
               _miniStat('Running', totalRunning, const Color(0xFF4CAF7D)),
+              _miniStat('Income', totalIncome, const Color(0xFF6B8E6B)),
             ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: deficit > 0
+                  ? Colors.red.withValues(alpha: 0.1)
+                  : const Color(0xFF6B8E6B).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  deficit > 0 ? 'Total Deficit' : 'Total Surplus',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: deficit > 0 ? Colors.red : const Color(0xFF6B8E6B),
+                  ),
+                ),
+                Text(
+                  formatZAR(deficit.abs()),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: deficit > 0 ? Colors.red : const Color(0xFF6B8E6B),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -923,7 +1091,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
     );
   }
 
-  Widget _tableCell(double value) {
+  Widget _tableCell(double value, {bool isIncome = false}) {
     return Padding(
       padding: const EdgeInsets.all(8),
       child: Text(value > 0 ? formatZAR(value) : '-',
@@ -1044,7 +1212,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          '${monthsConfigured}/12 months',
+                          '$monthsConfigured/12 months',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,

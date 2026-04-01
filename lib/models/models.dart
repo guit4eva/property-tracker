@@ -89,7 +89,16 @@ extension RatesFrequencyExtension on RatesFrequency {
   }
 }
 
-enum CostFrequency { onceOff, daily, weekly, monthly, yearly, custom }
+enum CostFrequency {
+  onceOff,
+  daily,
+  weekly,
+  monthly,
+  yearly,
+  everyXDays,
+  everyXWeeks,
+  everyXMonths
+}
 
 extension CostFrequencyExtension on CostFrequency {
   String get label {
@@ -104,8 +113,33 @@ extension CostFrequencyExtension on CostFrequency {
         return 'Monthly';
       case CostFrequency.yearly:
         return 'Yearly';
-      case CostFrequency.custom:
-        return 'Custom';
+      case CostFrequency.everyXDays:
+        return 'Every X Days';
+      case CostFrequency.everyXWeeks:
+        return 'Every X Weeks';
+      case CostFrequency.everyXMonths:
+        return 'Every X Months';
+    }
+  }
+
+  String get labelWithEmoji {
+    switch (this) {
+      case CostFrequency.onceOff:
+        return '📅 Once-off';
+      case CostFrequency.daily:
+        return '📆 Daily';
+      case CostFrequency.weekly:
+        return '📆 Weekly';
+      case CostFrequency.monthly:
+        return '📆 Monthly';
+      case CostFrequency.yearly:
+        return '📆 Yearly';
+      case CostFrequency.everyXDays:
+        return '🔁 Every X Days';
+      case CostFrequency.everyXWeeks:
+        return '🔁 Every X Weeks';
+      case CostFrequency.everyXMonths:
+        return '🔁 Every X Months';
     }
   }
 
@@ -121,8 +155,12 @@ extension CostFrequencyExtension on CostFrequency {
         return 'monthly';
       case CostFrequency.yearly:
         return 'yearly';
-      case CostFrequency.custom:
-        return 'custom';
+      case CostFrequency.everyXDays:
+        return 'every_x_days';
+      case CostFrequency.everyXWeeks:
+        return 'every_x_weeks';
+      case CostFrequency.everyXMonths:
+        return 'every_x_months';
     }
   }
 }
@@ -139,8 +177,12 @@ CostFrequency costFrequencyFromString(String s) {
       return CostFrequency.monthly;
     case 'yearly':
       return CostFrequency.yearly;
-    case 'custom':
-      return CostFrequency.custom;
+    case 'every_x_days':
+      return CostFrequency.everyXDays;
+    case 'every_x_weeks':
+      return CostFrequency.everyXWeeks;
+    case 'every_x_months':
+      return CostFrequency.everyXMonths;
     default:
       return CostFrequency.monthly;
   }
@@ -192,6 +234,21 @@ class MonthlyExpense {
       return ratesTaxes / 12;
     }
     return ratesTaxes;
+  }
+
+  // Get the end date of the annual rates period (12 months from start)
+  DateTime? get annualRatesEndDate {
+    if (ratesFrequency != RatesFrequency.annually || ratesStartDate == null) {
+      return null;
+    }
+    // Add 12 months to start date, then subtract 1 day to get last day of 12th month
+    final startYear = ratesStartDate!.year;
+    final startMonth = ratesStartDate!.month;
+    // Add 12 months
+    int endYear = startYear + 1;
+    int endMonth = startMonth;
+    // Return last day of the month before the anniversary month
+    return DateTime(endYear, endMonth, 0);
   }
 
   double get totalExpenses =>
@@ -389,6 +446,9 @@ class RunningCost {
   final String? description;
   final double amount;
   final CostFrequency frequency;
+  final int? interval; // For every X days/weeks/months
+  final int? dayOfWeek; // Optional: 1-7 (Monday-Sunday)
+  final int? dayOfMonth; // Optional: 1-31
   final DateTime startDate;
   final DateTime? endDate;
 
@@ -401,6 +461,9 @@ class RunningCost {
     this.description,
     required this.amount,
     CostFrequency? frequency,
+    this.interval,
+    this.dayOfWeek,
+    this.dayOfMonth,
     DateTime? startDate,
     this.endDate,
   })  : frequency = frequency ?? CostFrequency.monthly,
@@ -416,10 +479,13 @@ class RunningCost {
         amount: (json['amount'] as num).toDouble(),
         frequency: json['frequency'] != null
             ? costFrequencyFromString(json['frequency'] as String)
-            : null, // Will default to monthly in constructor
+            : CostFrequency.monthly,
+        interval: json['interval'] as int?,
+        dayOfWeek: json['day_of_week'] as int?,
+        dayOfMonth: json['day_of_month'] as int?,
         startDate: json['start_date'] != null
             ? DateTime.parse(json['start_date'] as String)
-            : null,
+            : DateTime(json['year'] as int, json['month'] as int, 1),
         endDate: json['end_date'] != null
             ? DateTime.parse(json['end_date'] as String)
             : null,
@@ -433,24 +499,69 @@ class RunningCost {
         'description': description,
         'amount': amount,
         'frequency': frequency.value,
+        'interval': interval,
+        'day_of_week': dayOfWeek,
+        'day_of_month': dayOfMonth,
         'start_date': startDate.toIso8601String(),
-        'end_date': endDate?.toIso8601String(),
+        if (endDate != null) 'end_date': endDate!.toIso8601String(),
       };
 
   double get monthlyEquivalent {
     switch (frequency) {
       case CostFrequency.onceOff:
-        return amount; // One-time cost, show as-is
+        return amount;
       case CostFrequency.daily:
-        return amount * 30.44; // Average days per month
+        return amount * 30.44;
       case CostFrequency.weekly:
-        return amount * 4.33; // Average weeks per month
+        return amount * 4.33;
       case CostFrequency.monthly:
         return amount;
       case CostFrequency.yearly:
         return amount / 12;
-      case CostFrequency.custom:
-        return amount;
+      case CostFrequency.everyXDays:
+        return amount * (30.44 / (interval ?? 1));
+      case CostFrequency.everyXWeeks:
+        return amount * (4.33 / (interval ?? 1));
+      case CostFrequency.everyXMonths:
+        return amount / (interval ?? 1);
+    }
+  }
+
+  String get frequencyDisplay {
+    if (interval != null && interval! > 1) {
+      switch (frequency) {
+        case CostFrequency.everyXDays:
+          return 'Every $interval days';
+        case CostFrequency.everyXWeeks:
+          return 'Every $interval weeks';
+        case CostFrequency.everyXMonths:
+          return 'Every $interval months';
+        default:
+          break;
+      }
+    }
+    if (dayOfWeek != null) {
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      return days[dayOfWeek! - 1];
+    }
+    if (dayOfMonth != null) {
+      final suffix = _getOrdinalSuffix(dayOfMonth!);
+      return 'On the $dayOfMonth$suffix';
+    }
+    return frequency.label;
+  }
+
+  String _getOrdinalSuffix(int n) {
+    if (n >= 11 && n <= 13) return 'th';
+    switch (n % 10) {
+      case 1:
+        return 'st';
+      case 2:
+        return 'nd';
+      case 3:
+        return 'rd';
+      default:
+        return 'th';
     }
   }
 }

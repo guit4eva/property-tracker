@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(flutter *)",
+      "Bash(python3)",
+      "Bash(with)",
+      "Bash(as *)",
+      "Bash(lines *)",
+      "Bash(start_marker *)",
+      "Bash(end_marker *)",
+      "Bash(start_idx *)",
+      "Bash(end_idx *)",
+      "Bash(lines)",
+      "Bash(print)",
+      "Bash(new_lines *)",
+      "Bash(f.writelines)",
+      "Bash(eof)",
+      "Bash(sed *)",
+      "Bash(content *)",
+      "Bash(old_cond *)",
+      "Bash(new_cond *)",
+      "Bash(old_cond, *)",
+      "Bash(old_readonly_start *)",
+      "Bash(// *)",
+      "Bash(iscoveredbyannualrates)",
+      "Bash(!_isediting *)",
+      "Bash(container)"
+    ]
+  },
+  "$version": 3
+}

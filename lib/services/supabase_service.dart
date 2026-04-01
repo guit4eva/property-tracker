@@ -1,5 +1,14 @@
+import 'dart:developer' as dev;
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
+
+void _log(String msg) {
+  debugPrint('[SupabaseService] $msg');
+  if (kReleaseMode) {
+    dev.log(msg, name: 'SupabaseService');
+  }
+}
 
 class SupabaseService {
   static final SupabaseClient _client = Supabase.instance.client;
@@ -7,19 +16,27 @@ class SupabaseService {
   // ─── Properties ────────────────────────────────────────────────────────────
 
   static Future<List<Property>> fetchProperties() async {
-    final data = await _client
-        .from('properties')
-        .select('*, evaluations:site_evaluations(*)')
-        .order('created_at', ascending: true);
-    return (data as List).map((e) => Property.fromJson(e)).toList();
+    _log('Fetching properties...');
+    try {
+      // Try without the join first to test RLS
+      final response = await _client
+          .from('properties')
+          .select('*')
+          .order('created_at', ascending: true);
+
+      _log('Properties response received');
+      _log('Found ${(response as List).length} properties');
+      return (response as List).map((e) => Property.fromJson(e)).toList();
+    } catch (e, stackTrace) {
+      _log('ERROR fetching properties: $e');
+      _log('Stack trace: $stackTrace');
+      return [];
+    }
   }
 
   static Future<Property> createProperty(Property p) async {
-    final data = await _client
-        .from('properties')
-        .insert(p.toJson())
-        .select()
-        .single();
+    final data =
+        await _client.from('properties').insert(p.toJson()).select().single();
     return Property.fromJson(data);
   }
 
@@ -169,11 +186,8 @@ class SupabaseService {
   }
 
   static Future<RentPeriod> createRentPeriod(RentPeriod r) async {
-    final data = await _client
-        .from('rent_periods')
-        .insert(r.toJson())
-        .select()
-        .single();
+    final data =
+        await _client.from('rent_periods').insert(r.toJson()).select().single();
     return RentPeriod.fromJson(data);
   }
 

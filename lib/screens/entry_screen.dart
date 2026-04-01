@@ -18,6 +18,7 @@ class _EntryScreenState extends State<EntryScreen> {
   late PageController _pageController;
   static const int _totalMonths = 240; // 20 years range
   static const int _centerIndex = _totalMonths ~/ 2; // Center point
+  final _formKey = GlobalKey<_MonthlyExpenseFormState>();
 
   @override
   void initState() {
@@ -101,35 +102,39 @@ class _EntryScreenState extends State<EntryScreen> {
           );
         }
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Add / Edit Entry'),
-          ),
-          body: Column(
-            children: [
-              _buildMonthSelector(),
-              Expanded(
-                child: PageView.builder(
-                  controller: _pageController,
-                  itemCount: _totalMonths,
-                  onPageChanged: (index) {
-                    final newDate = _indexToDate(index);
-                    setState(() => _selectedDate = newDate);
-                  },
-                  itemBuilder: (context, index) {
-                    final date = _indexToDate(index);
+        return PopScope(
+          canPop: true,
+          onPopInvoked: (didPop) {
+            // Exit edit mode when navigating away
+            _formKey.currentState?.exitEditMode();
+          },
+          child: Scaffold(
+            body: Column(
+              children: [
+                _buildMonthSelector(),
+                Expanded(
+                  child: PageView.builder(
+                    controller: _pageController,
+                    itemCount: _totalMonths,
+                    onPageChanged: (index) {
+                      final newDate = _indexToDate(index);
+                      setState(() => _selectedDate = newDate);
+                    },
+                    itemBuilder: (context, index) {
+                      final date = _indexToDate(index);
 
-                    return _MonthlyExpenseForm(
-                      key: ValueKey(
-                          '${prov.selectedProperty!.id}_${date.year}_${date.month}'),
-                      propertyId: prov.selectedProperty!.id,
-                      year: date.year,
-                      month: date.month,
-                    );
-                  },
+                      return _MonthlyExpenseForm(
+                        key: ValueKey(
+                            '${prov.selectedProperty!.id}_${date.year}_${date.month}'),
+                        propertyId: prov.selectedProperty!.id,
+                        year: date.year,
+                        month: date.month,
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -234,7 +239,11 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
       _paymentToMunicipality = existing.paymentToMunicipality; // NEW
       _notes = existing.notes ?? '';
       _ratesFrequency = existing.ratesFrequency;
-      _ratesStartDate = existing.ratesStartDate;
+      // If annual rates but no start date, default to Jan 1
+      _ratesStartDate = existing.ratesStartDate ??
+          (existing.ratesFrequency == RatesFrequency.annually
+              ? DateTime(existing.year, 1, 1)
+              : null);
       _isEditing = false; // Show info view by default when data exists
     } else {
       _existingExpense = null;
@@ -250,6 +259,161 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
       _ratesStartDate = null;
       _isEditing = false; // Show empty state CTA when no data
     }
+  }
+
+  void exitEditMode() {
+    if (_isEditing) {
+      setState(() => _isEditing = false);
+    }
+  }
+
+  Future<void> _editAnnualRates() async {
+    if (_existingExpense == null) return;
+
+    final amountCtrl = TextEditingController(
+      text: _existingExpense!.ratesTaxes.toStringAsFixed(2),
+    );
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Edit Annual Rates for ${widget.year}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Current annual amount: ${formatZAR(_existingExpense!.ratesTaxes)}',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _existingExpense!.ratesStartDate != null
+                  ? 'Period: ${_formatDateRange(_existingExpense!.ratesStartDate!, widget.year)}${_existingExpense!.annualRatesEndDate != null ? ' to ' + _formatDate(_existingExpense!.annualRatesEndDate!) : ''}'
+                  : 'Period: 1 Jan ${widget.year} to 31 Dec ${widget.year} (default)',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).textTheme.bodyMedium?.color,
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: amountCtrl,
+              decoration: const InputDecoration(
+                labelText: 'New Annual Amount',
+                prefixText: 'R ',
+                hintText: 'e.g., 12000',
+              ),
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newAmount = double.tryParse(amountCtrl.text);
+              if (newAmount != null && newAmount > 0) {
+                // Use existing start date or default to Jan 1 of current year
+                final startDate = _existingExpense!.ratesStartDate ??
+                    DateTime(widget.year, 1, 1);
+                Navigator.pop(ctx, {
+                  'amount': newAmount,
+                  'startDate': startDate,
+                });
+              }
+            },
+            child: const Text('Update'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null && mounted) {
+      setState(() {
+        _isEditing = true;
+        _ratesTaxes = result['amount'] as double;
+        _ratesFrequency = RatesFrequency.annually;
+        _ratesStartDate = result['startDate'] as DateTime?;
+      });
+    }
+  }
+
+  void _deleteAnnualRates() {
+    if (_existingExpense == null) return;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Annual Rates'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to delete annual rates for ${widget.year}?',
+              style: const TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _existingExpense!.ratesStartDate != null
+                  ? 'Period: ${_formatDateRange(_existingExpense!.ratesStartDate!, widget.year)}${_existingExpense!.annualRatesEndDate != null ? ' to ' + _formatDate(_existingExpense!.annualRatesEndDate!) : ''}'
+                  : 'Period: 1 Jan ${widget.year} to 31 Dec ${widget.year} (default)',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).textTheme.bodyMedium?.color,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'This will remove rates from all 12 months and reset them to monthly.',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    ).then((confirmed) async {
+      if (confirmed == true) {
+        final prov = context.read<PropertyProvider>();
+        // Delete expenses for all 12 months
+        for (int m = 1; m <= 12; m++) {
+          final expense = prov.getExpenseForMonth(widget.year, m);
+          if (expense != null &&
+              expense.ratesFrequency == RatesFrequency.annually) {
+            final updatedExpense = expense.copyWith(
+              ratesTaxes: 0,
+              ratesFrequency: RatesFrequency.monthly,
+            );
+            await prov.upsertExpense(updatedExpense);
+          }
+        }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Annual rates deleted'),
+              backgroundColor: Color(0xFF6B8E6B),
+            ),
+          );
+        }
+      }
+    });
   }
 
   Future<void> _save() async {
@@ -273,18 +437,13 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
       );
       final saved = await prov.upsertExpense(expense);
 
-      // If annual rates, auto-populate other months in the year
+      // If annual rates, overwrite ALL months in the year with the divided amount
       // Note: We save the FULL annual amount to all months with annually frequency
       // The effectiveMonthlyRates getter will divide by 12 for display/calculation
       if (_ratesFrequency == RatesFrequency.annually && _ratesTaxes > 0) {
         for (int m = 1; m <= 12; m++) {
-          if (m == widget.month) continue; // Skip current month (already saved)
-
-          // Check if month already has rates data
+          // Get existing data for this month
           final existingMonth = prov.getExpenseForMonth(widget.year, m);
-          if (existingMonth != null && existingMonth.ratesTaxes > 0) {
-            continue; // Skip months that already have data
-          }
 
           // Create/update expense for this month with the SAME annual amount
           final monthExpense = MonthlyExpense(
@@ -294,12 +453,12 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
             water: existingMonth?.water ?? 0,
             electricity: existingMonth?.electricity ?? 0,
             interest: existingMonth?.interest ?? 0,
-            ratesTaxes: _ratesTaxes, // Save full annual amount
+            ratesTaxes: _ratesTaxes, // Save full annual amount to ALL months
             paymentReceived: existingMonth?.paymentReceived ??
                 prov.getRentForMonth(widget.year, m) ??
                 0,
             paymentToMunicipality: existingMonth?.paymentToMunicipality ?? 0,
-            ratesFrequency: RatesFrequency.annually, // Same frequency
+            ratesFrequency: RatesFrequency.annually,
             ratesStartDate: _ratesStartDate,
           );
           await prov.upsertExpense(monthExpense);
@@ -331,6 +490,19 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
       }
     }
     if (mounted) setState(() => _saving = false);
+  }
+
+  String _formatDateRange(DateTime? startDate, int year) {
+    if (startDate == null) {
+      return 'Jan $year - Dec $year';
+    }
+    // Calculate end date: last day of the same month, one year later
+    final actualEndDate = DateTime(startDate.year + 1, startDate.month, 0);
+    return '${DateFormat('d MMM yyyy').format(startDate)} to ${DateFormat('d MMM yyyy').format(actualEndDate)}';
+  }
+
+  String _formatDate(DateTime date) {
+    return DateFormat('d MMM yyyy').format(date);
   }
 
   @override
@@ -490,8 +662,9 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
               const Color(0xFFAB47BC),
               Icons.account_balance_outlined,
               subtitle: e.ratesFrequency == RatesFrequency.annually
-                  ? '(Annual: ${formatZAR(e.ratesTaxes)})'
+                  ? '${formatZAR(e.ratesTaxes)}\n(${_formatDateRange(e.ratesStartDate, e.year)})'
                   : null,
+              subtitleStyle: const TextStyle(fontStyle: FontStyle.italic),
             ),
             _infoRow(
                 'Interest', e.interest, const Color(0xFFEF5350), Icons.percent),
@@ -502,36 +675,212 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color:
-                      Theme.of(context).colorScheme.primary.withOpacity(0.4)),
+              border: Border.all(color: Theme.of(context).dividerColor),
             ),
             child: Column(
               children: [
                 _summaryRow('Total Expenses', total, isTotal: true),
-                if (e.paymentReceived > 0 || e.paymentToMunicipality > 0) ...[
-                  const SizedBox(height: 8),
-                  if (e.paymentReceived > 0)
-                    _summaryRow('Payment Received', e.paymentReceived),
-                  if (e.paymentToMunicipality > 0) ...[
-                    const SizedBox(height: 8),
-                    _summaryRow(
-                        'Payment to Municipality', e.paymentToMunicipality),
-                  ],
-                  const Divider(height: 16),
-                  _summaryRow(
-                    'Balance After Payments',
-                    balanceAfterMuni,
-                    isTotal: true,
-                    isBalance: true,
-                    balance: balanceAfterMuni,
-                  ),
-                ],
               ],
             ),
           ),
+          if (e.paymentReceived > 0 || e.paymentToMunicipality > 0) ...[
+            const SizedBox(height: 16),
+
+            // Payment Tracking section
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.1),
+                    Theme.of(context)
+                        .colorScheme
+                        .secondary
+                        .withValues(alpha: 0.1),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.3),
+                ),
+              ),
+              child: Column(
+                children: [
+                  if (e.paymentReceived > 0) ...[
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color:
+                                const Color(0xFF6B8E6B).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.payments_outlined,
+                            color: Color(0xFF6B8E6B),
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Rent Received',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                'Payment from tenant',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.color,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          formatZAR(e.paymentReceived),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                            color: Color(0xFF6B8E6B),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (e.paymentToMunicipality > 0) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color:
+                                const Color(0xFF9C74CC).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(
+                            Icons.account_balance_outlined,
+                            color: Color(0xFF9C74CC),
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Paid to Municipality',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                'Payment to municipality',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.color,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          formatZAR(e.paymentToMunicipality),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                            color: Color(0xFF9C74CC),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  Divider(color: Theme.of(context).dividerColor),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Net Balance',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: balanceAfterMuni >= 0
+                              ? const Color(0xFF6B8E6B).withValues(alpha: 0.15)
+                              : const Color(0xFFE07A5F).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          formatZAR(balanceAfterMuni),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
+                            color: balanceAfterMuni >= 0
+                                ? const Color(0xFF6B8E6B)
+                                : const Color(0xFFE07A5F),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (balanceAfterMuni >= 0) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Surplus: Rent covers all expenses',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(context).textTheme.bodySmall?.color,
+                      ),
+                    ),
+                  ],
+                  if (balanceAfterMuni < 0) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Deficit: Expenses exceed rent',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(context).textTheme.bodySmall?.color,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
 
           if (e.notes != null && e.notes!.isNotEmpty) ...[
             const SizedBox(height: 16),
@@ -592,7 +941,7 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
   }
 
   Widget _infoRow(String label, double amount, Color color, IconData icon,
-      {String? subtitle}) {
+      {String? subtitle, TextStyle? subtitleStyle}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -615,9 +964,13 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
                         fontWeight: FontWeight.w500, fontSize: 14)),
                 if (subtitle != null)
                   Text(subtitle,
-                      style: TextStyle(
-                          fontSize: 11,
-                          color: Theme.of(context).textTheme.bodySmall?.color)),
+                      style: subtitleStyle ??
+                          TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .bodySmall
+                                  ?.color)),
               ],
             ),
           ),
@@ -664,14 +1017,6 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
 
   Widget _buildForm() {
     final isEditing = _existingExpense != null;
-    final totalExpenses = _water +
-        _electricity +
-        _interest +
-        (_ratesFrequency == RatesFrequency.annually
-            ? _ratesTaxes / 12
-            : _ratesTaxes);
-    final balancePreview =
-        _paymentReceived - totalExpenses - _paymentToMunicipality;
 
     return Scaffold(
       body: CustomScrollView(
@@ -732,108 +1077,6 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
                     ),
                   ),
                 const SizedBox(height: 20),
-
-                // Live Balance Preview Card
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: balancePreview >= 0
-                          ? [
-                              const Color(0xFF6B8E6B).withValues(alpha: 0.15),
-                              const Color(0xFF81C784).withValues(alpha: 0.1)
-                            ]
-                          : [
-                              const Color(0xFFE07A5F).withValues(alpha: 0.15),
-                              const Color(0xFFEF5350).withValues(alpha: 0.1)
-                            ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: balancePreview >= 0
-                          ? const Color(0xFF6B8E6B).withValues(alpha: 0.4)
-                          : const Color(0xFFE07A5F).withValues(alpha: 0.4),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (balancePreview >= 0
-                                ? const Color(0xFF6B8E6B)
-                                : const Color(0xFFE07A5F))
-                            .withValues(alpha: 0.2),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Balance Preview',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.color,
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                balancePreview >= 0 ? 'Surplus' : 'Deficit',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: balancePreview >= 0
-                                      ? const Color(0xFF6B8E6B)
-                                      : const Color(0xFFE07A5F),
-                                ),
-                              ),
-                            ],
-                          ),
-                          Text(
-                            formatZAR(balancePreview.abs()),
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w800,
-                              color: balancePreview >= 0
-                                  ? const Color(0xFF6B8E6B)
-                                  : const Color(0xFFE07A5F),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Divider(
-                          color: Theme.of(context)
-                              .dividerColor
-                              .withValues(alpha: 0.5)),
-                      const SizedBox(height: 12),
-                      _miniSummaryRow(
-                          'Income', _paymentReceived, const Color(0xFF6B8E6B)),
-                      const SizedBox(height: 8),
-                      _miniSummaryRow(
-                          'Expenses', totalExpenses, const Color(0xFFEF5350)),
-                      if (_paymentToMunicipality > 0) ...[
-                        const SizedBox(height: 8),
-                        _miniSummaryRow('Municipality Payment',
-                            _paymentToMunicipality, const Color(0xFF9C74CC)),
-                      ],
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
 
                 // Utilities Section
                 Padding(
@@ -1060,44 +1303,71 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
                 ],
               ),
               child: SafeArea(
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _saving ? null : _save,
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 4,
-                    ),
-                    child: _saving
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                isEditing ? Icons.update : Icons.save,
-                                size: 20,
-                              ),
-                              const SizedBox(width: 12),
-                              Text(
-                                isEditing ? 'Update Entry' : 'Save Entry',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _saving ? null : _save,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                  ),
+                          elevation: 4,
+                        ),
+                        child: _saving
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    isEditing ? Icons.update : Icons.save,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    isEditing ? 'Update Entry' : 'Save Entry',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ),
+                    if (isEditing) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () => setState(() => _isEditing = false),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
@@ -1105,29 +1375,6 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
         ],
       ),
-    );
-  }
-
-  Widget _miniSummaryRow(String label, double amount, Color color) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: Theme.of(context).textTheme.bodyMedium?.color,
-          ),
-        ),
-        Text(
-          formatZAR(amount),
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: color,
-          ),
-        ),
-      ],
     );
   }
 
@@ -1167,195 +1414,403 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
   }
 
   Widget _buildRatesSection() {
+    final prov = context.read<PropertyProvider>();
     final monthlyEquivalent = _ratesFrequency == RatesFrequency.annually
         ? _ratesTaxes / 12
         : _ratesTaxes;
 
+    // Check if this month is covered by annual rates
+    // Check if this month ALREADY HAS saved annual rates
+    final hasExistingAnnualRates = _existingExpense != null &&
+        _existingExpense!.ratesFrequency == RatesFrequency.annually &&
+        _existingExpense!.ratesTaxes > 0;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          child: _EditableCurrencyField(
-            label: _ratesFrequency == RatesFrequency.annually
-                ? 'Annual Rates & Taxes'
-                : 'Monthly Rates & Taxes',
-            value: _ratesTaxes,
-            onChanged: (v) => setState(() => _ratesTaxes = v),
-            hint: _ratesFrequency == RatesFrequency.annually
-                ? 'Total annual amount (will be divided by 12)'
-                : 'Monthly property rates/municipal taxes',
-          ),
-        ),
-        // Show monthly breakdown when annual is selected
-        if (_ratesFrequency == RatesFrequency.annually && _ratesTaxes > 0) ...[
-          const SizedBox(height: 12),
+        if (hasExistingAnnualRates) ...[
+          // Show read-only view for months covered by annual rates
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 20),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color:
-                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: Theme.of(context)
                     .colorScheme
                     .primary
-                    .withValues(alpha: 0.3),
+                    .withValues(alpha: 0.2),
               ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outlined,
+                          size: 20,
+                          color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Annual Rates: ${_formatDateRange(_existingExpense!.ratesStartDate, widget.year)}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.edit, size: 18),
+                                      onPressed: () => _editAnnualRates(),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      iconSize: 18,
+                                      tooltip: 'Edit annual rates',
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete_outline,
+                                          size: 18),
+                                      onPressed: () => _deleteAnnualRates(),
+                                      padding: EdgeInsets.zero,
+                                      constraints: const BoxConstraints(),
+                                      iconSize: 18,
+                                      tooltip: 'Delete annual rates',
+                                      color: Colors.red,
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Annual: ${formatZAR(_existingExpense!.ratesTaxes)}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                            Text(
+                              _existingExpense!.ratesStartDate != null
+                                  ? 'Period: ${_formatDateRange(_existingExpense!.ratesStartDate!, widget.year)}${_existingExpense!.annualRatesEndDate != null ? ' to ' + _formatDate(_existingExpense!.annualRatesEndDate!) : ''}'
+                                  : 'Period: 1 Jan ${widget.year} to 31 Dec ${widget.year} (default)',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodyMedium
+                                    ?.color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Icon(Icons.calculate_outlined,
-                        size: 18, color: Theme.of(context).colorScheme.primary),
-                    const SizedBox(width: 8),
                     Text(
-                      'Monthly equivalent:',
+                      'Monthly Amount:',
                       style: TextStyle(
                         fontSize: 13,
+                        color: Theme.of(context).textTheme.bodyMedium?.color,
+                      ),
+                    ),
+                    Text(
+                      formatZAR(_existingExpense!.ratesTaxes / 12),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
                         color: Theme.of(context).colorScheme.primary,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
                 ),
-                Text(
-                  formatZAR(monthlyEquivalent),
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: Theme.of(context).colorScheme.primary,
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'This Month:',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Theme.of(context).textTheme.bodyMedium?.color,
+                      ),
+                    ),
+                    Text(
+                      formatZAR(_existingExpense!.ratesTaxes / 12),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ] else ...[
+          // Show editable view
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            child: _EditableCurrencyField(
+              label: _ratesFrequency == RatesFrequency.annually
+                  ? 'Annual Rates & Taxes'
+                  : 'Monthly Rates & Taxes',
+              value: _ratesTaxes,
+              onChanged: (v) => setState(() => _ratesTaxes = v),
+              hint: _ratesFrequency == RatesFrequency.annually
+                  ? 'Total annual amount (will be divided by 12)'
+                  : 'Monthly property rates/municipal taxes',
+            ),
+          ),
+          // Show monthly breakdown when annual is selected
+          if (_ratesFrequency == RatesFrequency.annually &&
+              _ratesTaxes > 0) ...[
+            const SizedBox(height: 12),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Theme.of(context)
+                      .colorScheme
+                      .primary
+                      .withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.calculate_outlined,
+                          size: 18,
+                          color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Monthly equivalent:',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    formatZAR(monthlyEquivalent),
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+        const SizedBox(height: 12),
+        if (_ratesFrequency == RatesFrequency.annually && _ratesTaxes > 0) ...[
+          // Show note when annual rates are being entered/edited
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color:
+                  Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.2),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline,
+                    size: 18, color: Theme.of(context).colorScheme.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _ratesStartDate != null
+                        ? 'This amount will be saved as annual rates and divided across all 12 months from ${_formatDateRange(_ratesStartDate, widget.year)} to ${_formatDate(DateTime(_ratesStartDate!.year + 1, _ratesStartDate!.month, 0))}'
+                        : 'This amount will be saved as annual rates for ${widget.year} and divided across all 12 months',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-        ],
-        const SizedBox(height: 12),
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Theme.of(context).dividerColor),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Payment Frequency',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
+          const SizedBox(height: 4),
+        ] else ...[
+          // Show Payment Frequency section (hidden when editing annual rates)
+          if (_ratesFrequency != RatesFrequency.annually || _ratesTaxes == 0)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Theme.of(context).dividerColor),
               ),
-              const SizedBox(height: 4),
-              Text(
-                'How are rates paid for this property?',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).textTheme.bodySmall?.color,
-                ),
-              ),
-              const SizedBox(height: 10),
-              SegmentedButton<RatesFrequency>(
-                segments: const [
-                  ButtonSegment(
-                    value: RatesFrequency.monthly,
-                    label: Text('Monthly'),
-                    icon: Icon(Icons.calendar_month, size: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Payment Frequency',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
                   ),
-                  ButtonSegment(
-                    value: RatesFrequency.annually,
-                    label: Text('Annually'),
-                    icon: Icon(Icons.calendar_today, size: 16),
+                  const SizedBox(height: 4),
+                  Text(
+                    'How are rates paid for this property?',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).textTheme.bodySmall?.color,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SegmentedButton<RatesFrequency>(
+                    segments: const [
+                      ButtonSegment(
+                        value: RatesFrequency.monthly,
+                        label: Text('Monthly'),
+                        icon: Icon(Icons.calendar_month, size: 16),
+                      ),
+                      ButtonSegment(
+                        value: RatesFrequency.annually,
+                        label: Text('Annually'),
+                        icon: Icon(Icons.calendar_today, size: 16),
+                      ),
+                    ],
+                    selected: {_ratesFrequency},
+                    onSelectionChanged: (set) async {
+                      final newFrequency = set.first;
+
+                      // Check if switching to annually with existing monthly data
+                      if (newFrequency == RatesFrequency.annually &&
+                          _ratesTaxes > 0) {
+                        final prov = context.read<PropertyProvider>();
+                        final existingMonths = prov.expenses
+                            .where((e) =>
+                                e.year == widget.year && e.ratesTaxes > 0)
+                            .toList();
+
+                        if (existingMonths.isNotEmpty) {
+                          final confirmed = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Existing Monthly Data'),
+                              content: Text(
+                                'You have rates data entered for ${existingMonths.length} month(s) in $widget.year. '
+                                'Switching to annual will use the annual amount divided across all months. '
+                                'Continue?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(false),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.of(ctx).pop(true),
+                                  child: const Text('Continue'),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirmed != true) return;
+                        }
+                      }
+
+                      setState(() {
+                        _ratesFrequency = newFrequency;
+                        // When switching to annual, divide by 12 to get approximate annual
+                        // When switching to monthly, multiply by 12 to get approximate monthly
+                        if (_ratesTaxes > 0) {
+                          _ratesTaxes =
+                              _ratesFrequency == RatesFrequency.annually
+                                  ? _ratesTaxes * 12
+                                  : _ratesTaxes / 12;
+                        }
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.date_range, size: 20),
+                    title: const Text('Rates Start Month',
+                        style: TextStyle(fontSize: 14)),
+                    subtitle: Text(
+                      _ratesStartDate != null
+                          ? DateFormat('MMMM yyyy').format(_ratesStartDate!)
+                          : 'Not set (defaults to this month)',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    trailing: TextButton(
+                      onPressed: () async {
+                        final date = await showDialog<DateTime>(
+                          context: context,
+                          builder: (ctx) => _MonthYearPickerDialog(
+                            initial: _ratesStartDate ?? DateTime.now(),
+                          ),
+                        );
+                        if (date != null) {
+                          setState(() => _ratesStartDate = date);
+                        }
+                      },
+                      child: const Text('Set'),
+                    ),
                   ),
                 ],
-                selected: {_ratesFrequency},
-                onSelectionChanged: (set) async {
-                  final newFrequency = set.first;
-
-                  // Check if switching to annually with existing monthly data
-                  if (newFrequency == RatesFrequency.annually &&
-                      _ratesTaxes > 0) {
-                    final prov = context.read<PropertyProvider>();
-                    final existingMonths = prov.expenses
-                        .where((e) => e.year == widget.year && e.ratesTaxes > 0)
-                        .toList();
-
-                    if (existingMonths.isNotEmpty) {
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('Existing Monthly Data'),
-                          content: Text(
-                            'You have rates data entered for ${existingMonths.length} month(s) in $widget.year. '
-                            'Switching to annual will use the annual amount divided across all months. '
-                            'Continue?',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.of(ctx).pop(false),
-                              child: const Text('Cancel'),
-                            ),
-                            TextButton(
-                              onPressed: () => Navigator.of(ctx).pop(true),
-                              child: const Text('Continue'),
-                            ),
-                          ],
-                        ),
-                      );
-                      if (confirmed != true) return;
-                    }
-                  }
-
-                  setState(() {
-                    _ratesFrequency = newFrequency;
-                    // When switching to annual, divide by 12 to get approximate annual
-                    // When switching to monthly, multiply by 12 to get approximate monthly
-                    if (_ratesTaxes > 0) {
-                      _ratesTaxes = _ratesFrequency == RatesFrequency.annually
-                          ? _ratesTaxes * 12
-                          : _ratesTaxes / 12;
-                    }
-                  });
-                },
               ),
-              const SizedBox(height: 10),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.date_range, size: 20),
-                title: const Text('Rates Start Month',
-                    style: TextStyle(fontSize: 14)),
-                subtitle: Text(
-                  _ratesStartDate != null
-                      ? DateFormat('MMMM yyyy').format(_ratesStartDate!)
-                      : 'Not set (defaults to this month)',
-                  style: const TextStyle(fontSize: 12),
-                ),
-                trailing: TextButton(
-                  onPressed: () async {
-                    final date = await showDialog<DateTime>(
-                      context: context,
-                      builder: (ctx) => _MonthYearPickerDialog(
-                        initial: _ratesStartDate ?? DateTime.now(),
-                      ),
-                    );
-                    if (date != null) {
-                      setState(() => _ratesStartDate = date);
-                    }
-                  },
-                  child: const Text('Set'),
-                ),
-              ),
-            ],
-          ),
-        ),
+            ),
+        ],
         const SizedBox(height: 4),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),

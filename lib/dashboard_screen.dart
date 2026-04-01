@@ -6,6 +6,7 @@ import 'package:fl_chart/fl_chart.dart';
 import '../providers/property_provider.dart';
 import '../widgets/shared_widgets.dart';
 import 'evaluations_screen.dart';
+import 'overview_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -49,7 +50,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return Scaffold(
           body: CustomScrollView(
             slivers: [
-              _buildAppBar(context, prov),
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 16),
+              ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
                 sliver: SliverList(
@@ -75,84 +78,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildAppBar(BuildContext context, PropertyProvider prov) {
-    return SliverAppBar(
-      floating: true,
-      pinned: false,
-      title: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.primary,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(Icons.home_work,
-                size: 18, color: Theme.of(context).colorScheme.onPrimary),
-          ),
-          const SizedBox(width: 10),
-          const Text('Property Tracker'),
-        ],
-      ),
-      actions: [
-        // Offline indicator
-        if (prov.isOffline)
-          Padding(
-            padding: const EdgeInsets.only(right: 8.0),
-            child: Tooltip(
-              message: 'Offline - changes will sync when online',
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.cloud_off, size: 14, color: Colors.orange),
-                    SizedBox(width: 4),
-                    Text(
-                      'Offline',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.orange,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        // Refresh button
-        IconButton(
-          icon: Icon(
-            prov.loading ? Icons.refresh : Icons.refresh,
-            size: 20,
-          ),
-          onPressed: prov.loading ? null : () => prov.refresh(),
-          tooltip: 'Refresh data',
-        ),
-        if (prov.loading)
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ),
-      ],
     );
   }
 
@@ -333,45 +258,72 @@ class _DashboardScreenState extends State<DashboardScreen> {
           crossAxisSpacing: 12,
           childAspectRatio: 1.5,
           children: [
-            StatCard(
-              label: 'Total Water',
-              amount: totals['water']!,
-              color: const Color(0xFF42A5F5),
-              icon: Icons.water_drop_outlined,
+            GestureDetector(
+              onTap: () => _navigateToOverview(ChartView.water),
+              child: StatCard(
+                label: 'Total Water',
+                amount: totals['water']!,
+                color: const Color(0xFF42A5F5),
+                icon: Icons.water_drop_outlined,
+              ),
             ),
-            StatCard(
-              label: 'Total Electricity',
-              amount: totals['electricity']!,
-              color: const Color(0xFFF5C842),
-              icon: Icons.bolt_outlined,
+            GestureDetector(
+              onTap: () => _navigateToOverview(ChartView.electricity),
+              child: StatCard(
+                label: 'Total Electricity',
+                amount: totals['electricity']!,
+                color: const Color(0xFFF5C842),
+                icon: Icons.bolt_outlined,
+              ),
             ),
-            StatCard(
-              label: 'Total Interest',
-              amount: totals['interest']!,
-              color: const Color(0xFFEF5350),
-              icon: Icons.percent,
+            GestureDetector(
+              onTap: () => _navigateToOverview(ChartView.interest),
+              child: StatCard(
+                label: 'Total Interest',
+                amount: totals['interest']!,
+                color: const Color(0xFFEF5350),
+                icon: Icons.percent,
+              ),
             ),
-            StatCard(
-              label: 'Rates & Taxes',
-              amount: totals['rates']!,
-              color: const Color(0xFFAB47BC),
-              icon: Icons.account_balance_outlined,
+            GestureDetector(
+              onTap: () => _navigateToOverview(ChartView.rates),
+              child: StatCard(
+                label: 'Rates & Taxes',
+                amount: totals['rates']!,
+                color: const Color(0xFFAB47BC),
+                icon: Icons.account_balance_outlined,
+              ),
             ),
-            StatCard(
-              label: 'Running Costs',
-              amount: totals['running']!,
-              color: const Color(0xFF6B8E6B),
-              icon: Icons.build_outlined,
+            GestureDetector(
+              onTap: () => _navigateToOverview(ChartView.running),
+              child: StatCard(
+                label: 'Running Costs',
+                amount: totals['running']!,
+                color: const Color(0xFF6B8E6B),
+                icon: Icons.build_outlined,
+              ),
             ),
-            StatCard(
-              label: 'Total Expenses',
-              amount: totals['total']!,
-              color: Theme.of(context).colorScheme.primary,
-              icon: Icons.summarize_outlined,
+            GestureDetector(
+              onTap: () => _navigateToOverview(ChartView.overview),
+              child: StatCard(
+                label: 'Total Expenses',
+                amount: totals['total']!,
+                color: Theme.of(context).colorScheme.primary,
+                icon: Icons.summarize_outlined,
+              ),
             ),
           ],
         ),
       ],
+    );
+  }
+
+  void _navigateToOverview(ChartView view) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => OverviewScreen(initialView: view),
+      ),
     );
   }
 

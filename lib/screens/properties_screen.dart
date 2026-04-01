@@ -3,9 +3,8 @@ import 'package:provider/provider.dart';
 
 import '../providers/property_provider.dart';
 import '../models/models.dart';
-import '../widgets/shared_widgets.dart' hide EmptyState;
+import '../widgets/shared_widgets.dart';
 import 'import_data_screen.dart';
-import 'rent_history_screen.dart' show RentHistoryScreen, EmptyState;
 
 class PropertiesScreen extends StatelessWidget {
   const PropertiesScreen({super.key});
@@ -47,7 +46,13 @@ class PropertiesScreen extends StatelessWidget {
                     return _PropertyCard(
                       property: prop,
                       isSelected: isSelected,
-                      onTap: () => prov.selectProperty(prop),
+                      onTap: () async {
+                        await prov.selectProperty(prop);
+                        if (context.mounted) {
+                          // Pop back to previous screen (HomeScreen)
+                          Navigator.pop(context);
+                        }
+                      },
                       onEdit: () => _showEditProperty(context, prop),
                       onDelete: () => _confirmDelete(context, prov, prop),
                     );
@@ -229,27 +234,8 @@ class _PropertyCard extends StatelessWidget {
               onSelected: (v) {
                 if (v == 'edit') onEdit();
                 if (v == 'delete') onDelete();
-                if (v == 'rent') {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => RentHistoryScreen(
-                        propertyId: property.id,
-                        propertyName: property.name,
-                      ),
-                    ),
-                  );
-                }
               },
               itemBuilder: (_) => [
-                const PopupMenuItem(
-                  value: 'rent',
-                  child: Row(children: [
-                    Icon(Icons.attach_money, size: 16),
-                    SizedBox(width: 8),
-                    Text('Rent History'),
-                  ]),
-                ),
                 const PopupMenuItem(
                   value: 'edit',
                   child: Row(children: [
