@@ -314,6 +314,55 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
         ),
         actions: [
           TextButton(
+            onPressed: () async {
+              // Delete annual rates
+              final confirmed = await showDialog<bool>(
+                context: ctx,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Delete Annual Rates'),
+                  content: Text(
+                    'Are you sure you want to delete annual rates for ${widget.year}?',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: TextButton.styleFrom(foregroundColor: Colors.red),
+                      child: const Text('Delete'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirmed == true && mounted) {
+                final prov = context.read<PropertyProvider>();
+                for (int m = 1; m <= 12; m++) {
+                  final expense = prov.getExpenseForMonth(widget.year, m);
+                  if (expense != null &&
+                      expense.ratesFrequency == RatesFrequency.annually) {
+                    await prov.upsertExpense(expense.copyWith(
+                      ratesTaxes: 0,
+                      ratesFrequency: RatesFrequency.monthly,
+                    ));
+                  }
+                }
+                if (!context.mounted) return;
+                Navigator.pop(ctx); // Close delete dialog
+                Navigator.pop(ctx); // Close edit dialog
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Annual rates deleted'),
+                    backgroundColor: Color(0xFF6B8E6B),
+                  ),
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+          TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Cancel'),
           ),
@@ -324,9 +373,19 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
                 // Use existing start date or default to Jan 1 of current year
                 final startDate = _existingExpense!.ratesStartDate ??
                     DateTime(widget.year, 1, 1);
-                Navigator.pop(ctx, {
-                  'amount': newAmount,
-                  'startDate': startDate,
+
+                // Update local state only - will save when user taps "Save Entry"
+                Navigator.pop(ctx);
+                setState(() {
+                  _ratesTaxes = newAmount;
+                  _ratesFrequency = RatesFrequency.annually;
+                  _ratesStartDate = startDate;
+                  // Update _existingExpense to reflect the change
+                  _existingExpense = _existingExpense!.copyWith(
+                    ratesTaxes: newAmount,
+                    ratesFrequency: RatesFrequency.annually,
+                    ratesStartDate: startDate,
+                  );
                 });
               }
             },
@@ -335,15 +394,6 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
         ],
       ),
     );
-
-    if (result != null && mounted) {
-      setState(() {
-        _isEditing = true;
-        _ratesTaxes = result['amount'] as double;
-        _ratesFrequency = RatesFrequency.annually;
-        _ratesStartDate = result['startDate'] as DateTime?;
-      });
-    }
   }
 
   void _deleteAnnualRates() {

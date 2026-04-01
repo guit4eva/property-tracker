@@ -24,7 +24,13 @@
       "Bash(// *)",
       "Bash(iscoveredbyannualrates)",
       "Bash(!_isediting *)",
-      "Bash(container)"
+      "Bash(container)",
+      "Bash(skip_until_child *)",
+      "Bash(in_update_button *)",
+      "Bash(\\n')\n            new_lines.append(' *)",
+      "Bash(newamount)",
+      "Bash(widget.year, *)",
+      "Bash(ctx)"
     ]
   },
   "$version": 3
