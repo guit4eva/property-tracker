@@ -193,13 +193,15 @@ class EvaluationsScreen extends StatelessWidget {
                     size: 20,
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    'Change from previous:',
-                    style: TextStyle(
-                      color: Theme.of(context).textTheme.bodySmall?.color,
+                  Flexible(
+                    child: Text(
+                      'Change from previous:',
+                      style: TextStyle(
+                        color: Theme.of(context).textTheme.bodySmall?.color,
+                      ),
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   Text(
                     '${change >= 0 ? '+' : ''}${formatZAR(change)}',
                     style: TextStyle(
@@ -258,7 +260,7 @@ class EvaluationsScreen extends StatelessWidget {
     );
   }
 
-void _showAddEvaluation(BuildContext context, String propertyId) {
+  void _showAddEvaluation(BuildContext context, String propertyId) {
     final valueController = TextEditingController();
     final notesController = TextEditingController();
     DateTime evalDate = DateTime.now();

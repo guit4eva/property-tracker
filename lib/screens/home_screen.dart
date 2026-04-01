@@ -61,9 +61,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ];
 
     return Scaffold(
-      body: IndexedStack(
-        index: _tab,
-        children: screens,
+      body: SafeArea(
+        child: IndexedStack(
+          index: _tab,
+          children: screens,
+        ),
       ),
       bottomNavigationBar: _buildNavBar(),
     );

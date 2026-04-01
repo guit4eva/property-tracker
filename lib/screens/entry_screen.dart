@@ -274,7 +274,7 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
       text: _existingExpense!.ratesTaxes.toStringAsFixed(2),
     );
 
-    final result = await showDialog<Map<String, dynamic>>(
+    await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text('Edit Annual Rates for ${widget.year}'),
@@ -292,7 +292,7 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
             const SizedBox(height: 8),
             Text(
               _existingExpense!.ratesStartDate != null
-                  ? 'Period: ${_formatDateRange(_existingExpense!.ratesStartDate!, widget.year)}${_existingExpense!.annualRatesEndDate != null ? ' to ' + _formatDate(_existingExpense!.annualRatesEndDate!) : ''}'
+                  ? 'Period: ${_formatDateRange(_existingExpense!.ratesStartDate!, widget.year)}'
                   : 'Period: 1 Jan ${widget.year} to 31 Dec ${widget.year} (default)',
               style: TextStyle(
                 fontSize: 12,
@@ -338,19 +338,24 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
               );
               if (confirmed == true && mounted) {
                 final prov = context.read<PropertyProvider>();
+                // Delete annual rates from all 12 months
                 for (int m = 1; m <= 12; m++) {
                   final expense = prov.getExpenseForMonth(widget.year, m);
-                  if (expense != null &&
-                      expense.ratesFrequency == RatesFrequency.annually) {
+                  if (expense != null) {
                     await prov.upsertExpense(expense.copyWith(
                       ratesTaxes: 0,
                       ratesFrequency: RatesFrequency.monthly,
+                      ratesStartDate: null,
                     ));
                   }
                 }
                 if (!context.mounted) return;
                 Navigator.pop(ctx); // Close delete dialog
                 Navigator.pop(ctx); // Close edit dialog
+
+                // Reload data from provider to ensure UI updates
+                prov.loadProperties();
+
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text('Annual rates deleted'),
@@ -413,7 +418,7 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
             const SizedBox(height: 8),
             Text(
               _existingExpense!.ratesStartDate != null
-                  ? 'Period: ${_formatDateRange(_existingExpense!.ratesStartDate!, widget.year)}${_existingExpense!.annualRatesEndDate != null ? ' to ' + _formatDate(_existingExpense!.annualRatesEndDate!) : ''}'
+                  ? 'Period: ${_formatDateRange(_existingExpense!.ratesStartDate!, widget.year)}'
                   : 'Period: 1 Jan ${widget.year} to 31 Dec ${widget.year} (default)',
               style: TextStyle(
                 fontSize: 12,
@@ -1464,7 +1469,7 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
   }
 
   Widget _buildRatesSection() {
-    final prov = context.read<PropertyProvider>();
+    context.read<PropertyProvider>();
     final monthlyEquivalent = _ratesFrequency == RatesFrequency.annually
         ? _ratesTaxes / 12
         : _ratesTaxes;
@@ -1568,7 +1573,7 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
                             ),
                             Text(
                               _existingExpense!.ratesStartDate != null
-                                  ? 'Period: ${_formatDateRange(_existingExpense!.ratesStartDate!, widget.year)}${_existingExpense!.annualRatesEndDate != null ? ' to ' + _formatDate(_existingExpense!.annualRatesEndDate!) : ''}'
+                                  ? 'Period: ${_formatDateRange(_existingExpense!.ratesStartDate!, widget.year)}'
                                   : 'Period: 1 Jan ${widget.year} to 31 Dec ${widget.year} (default)',
                               style: TextStyle(
                                 fontSize: 12,

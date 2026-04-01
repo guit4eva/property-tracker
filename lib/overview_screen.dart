@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -291,7 +290,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
         ? allData // All time
         : allData.where((m) => m['year'] == _selectedYear).toList();
     final displayYears = [0, ...years];
-    final currentIndex = displayYears.indexOf(_selectedYear);
+    displayYears.indexOf(_selectedYear);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 80),
@@ -458,106 +457,6 @@ class _OverviewScreenState extends State<OverviewScreen> {
     );
   }
 
-  void _showYearSelector() {
-    final prov = Provider.of<PropertyProvider>(context, listen: false);
-    final allData = _showAllProperties && prov.properties.length > 1
-        ? prov.allPropertiesMonthlyTotals
-        : prov.monthlyTotalsForChart;
-    final years = allData.map((m) => m['year'] as int).toSet().toList()..sort();
-    final displayYears = [0, ...years];
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Select Year'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: displayYears.length,
-            itemBuilder: (ctx, i) {
-              final year = displayYears[i];
-              final isSelected = _yearFilter == year;
-              return ListTile(
-                selected: isSelected,
-                title: Text(
-                  year == 0 ? 'All Time' : '$year',
-                  style: TextStyle(
-                    fontWeight:
-                        isSelected ? FontWeight.w700 : FontWeight.normal,
-                  ),
-                ),
-                onTap: () {
-                  setState(() => _yearFilter = year);
-                  // Navigate to the correct page in the PageView
-                  _yearPageController.animateToPage(
-                    i,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                  );
-                  Navigator.pop(ctx);
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSummaryYearSelector() {
-    final prov = Provider.of<PropertyProvider>(context, listen: false);
-    final allData = _showAllProperties && prov.properties.length > 1
-        ? prov.allPropertiesMonthlyTotals
-        : prov.monthlyTotalsForChart;
-    final years = allData.map((m) => m['year'] as int).toSet().toList()..sort();
-    final displayYears = [0, ...years];
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Select Year'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: displayYears.length,
-            itemBuilder: (ctx, i) {
-              final year = displayYears[i];
-              final isSelected = _selectedYear == year;
-              return ListTile(
-                selected: isSelected,
-                title: Text(
-                  year == 0 ? 'All Time' : '$year',
-                  style: TextStyle(
-                    fontWeight:
-                        isSelected ? FontWeight.w700 : FontWeight.normal,
-                  ),
-                ),
-                onTap: () {
-                  setState(() => _selectedYear = year);
-                  Navigator.pop(ctx);
-                },
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _buildChart(
       PropertyProvider prov, List<Map<String, dynamic>> allData) {
     var data = allData;
@@ -577,7 +476,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
     // Get unique years for navigation
     final years = allData.map((m) => m['year'] as int).toSet().toList()..sort();
     final displayYears = [0, ...years]; // 0 = All time
-    final currentIndex = displayYears.indexOf(_yearFilter);
+    displayYears.indexOf(_yearFilter);
 
     return Column(
       children: [
@@ -1015,83 +914,89 @@ class _OverviewScreenState extends State<OverviewScreen> {
               ),
             ),
           ),
-          Table(
-            columnWidths: const {
-              0: FlexColumnWidth(2),
-              1: FlexColumnWidth(1.5),
-              2: FlexColumnWidth(1.5),
-              3: FlexColumnWidth(1.5),
-              4: FlexColumnWidth(1.5),
-              5: FlexColumnWidth(1.5),
-              6: FlexColumnWidth(1.5),
-            },
-            children: [
-              TableRow(
-                decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .primary
-                      .withValues(alpha: 0.05),
-                ),
-                children: [
-                  'Month',
-                  'Water',
-                  'Elec',
-                  'Interest',
-                  'Rates',
-                  'Running',
-                  'Total'
-                ]
-                    .map((h) => Padding(
-                          padding: const EdgeInsets.all(8),
-                          child: Text(h,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                color: Theme.of(context).colorScheme.primary,
-                              )),
-                        ))
-                    .toList(),
-              ),
-              ...yearData.map((m) {
-                final total = (m['total'] as num).toDouble();
-                return TableRow(
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Table(
+              columnWidths: const {
+                0: IntrinsicColumnWidth(),
+                1: IntrinsicColumnWidth(),
+                2: IntrinsicColumnWidth(),
+                3: IntrinsicColumnWidth(),
+                4: IntrinsicColumnWidth(),
+                5: IntrinsicColumnWidth(),
+                6: IntrinsicColumnWidth(),
+              },
+              children: [
+                TableRow(
                   decoration: BoxDecoration(
-                    border: Border(
-                      bottom: BorderSide(
-                          color: Theme.of(context).dividerColor, width: 0.5),
-                    ),
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.05),
                   ),
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Text(
-                          monthYear(m['year'] as int, m['month'] as int),
-                          style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w500)),
+                    'Month',
+                    'Water',
+                    'Elec',
+                    'Interest',
+                    'Rates',
+                    'Running',
+                    'Total'
+                  ]
+                      .map((h) => Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            child: Text(h,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: Theme.of(context).colorScheme.primary,
+                                )),
+                          ))
+                      .toList(),
+                ),
+                ...yearData.map((m) {
+                  final total = (m['total'] as num).toDouble();
+                  return TableRow(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                            color: Theme.of(context).dividerColor, width: 0.5),
+                      ),
                     ),
-                    _tableCell(m['water'] as double),
-                    _tableCell(m['electricity'] as double),
-                    _tableCell(m['interest'] as double),
-                    _tableCell(m['rates'] as double),
-                    _tableCell(m['running'] as double),
-                    Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Text(formatZAR(total),
-                          style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w700)),
-                    ),
-                  ],
-                );
-              }),
-            ],
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        child: Text(
+                            monthYear(m['year'] as int, m['month'] as int),
+                            style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w500)),
+                      ),
+                      _tableCell(m['water'] as double),
+                      _tableCell(m['electricity'] as double),
+                      _tableCell(m['interest'] as double),
+                      _tableCell(m['rates'] as double),
+                      _tableCell(m['running'] as double),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        child: Text(formatZAR(total),
+                            style: const TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w700)),
+                      ),
+                    ],
+                  );
+                }),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _tableCell(double value, {bool isIncome = false}) {
+  Widget _tableCell(double value) {
     return Padding(
       padding: const EdgeInsets.all(8),
       child: Text(value > 0 ? formatZAR(value) : '-',
@@ -1345,28 +1250,6 @@ class _OverviewScreenState extends State<OverviewScreen> {
                 ),
               )),
         ],
-      ),
-    );
-  }
-
-  void _copyCSV(BuildContext context, PropertyProvider prov) {
-    final allData = _showAllProperties && prov.properties.length > 1
-        ? prov.allPropertiesMonthlyTotals
-        : prov.monthlyTotalsForChart;
-    final yearData = allData.where((m) => m['year'] == _selectedYear).toList();
-
-    final buffer = StringBuffer();
-    buffer.writeln('Month,Water,Electricity,Interest,Rates,Running,Total');
-    for (final m in yearData) {
-      buffer.writeln(
-          '${monthYear(m['year'] as int, m['month'] as int)},${m['water']},${m['electricity']},${m['interest']},${m['rates']},${m['running']},${m['total']}');
-    }
-
-    Clipboard.setData(ClipboardData(text: buffer.toString()));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('CSV copied to clipboard'),
-        backgroundColor: Color(0xFF6B8E6B),
       ),
     );
   }
