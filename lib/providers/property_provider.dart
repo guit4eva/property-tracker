@@ -9,14 +9,14 @@ class PropertyProvider extends ChangeNotifier {
   List<MonthlyExpense> _expenses = [];
   List<RunningCost> _runningCosts = [];
   List<SiteEvaluation> _evaluations = [];
-  List<RentPeriod> _rentPeriods = [];  // NEW: Rent periods
+  List<RentPeriod> _rentPeriods = []; // NEW: Rent periods
   bool _loading = false;
   String? _error;
-  
+
   // Offline support
   bool _isOffline = false;
   final List<Map<String, dynamic>> _pendingChanges = [];
-  
+
   // Filters for advanced search/filtering
   int? _filterYear;
   CostCategory? _filterCategory;
@@ -28,7 +28,7 @@ class PropertyProvider extends ChangeNotifier {
   List<MonthlyExpense> get expenses => _expenses;
   List<RunningCost> get runningCosts => _runningCosts;
   List<SiteEvaluation> get evaluations => _evaluations;
-  List<RentPeriod> get rentPeriods => _rentPeriods;  // NEW
+  List<RentPeriod> get rentPeriods => _rentPeriods; // NEW
   bool get loading => _loading;
   String? get error => _error;
   bool get isOffline => _isOffline;
@@ -42,7 +42,7 @@ class PropertyProvider extends ChangeNotifier {
   List<RunningCost> get allRunningCosts => _runningCosts;
 
   // ─── Refresh & Manual Reload ────────────────────────────────────────────────
-  
+
   /// Manual refresh method - can be called from UI
   Future<void> refresh() async {
     if (_selectedProperty != null) {
@@ -50,7 +50,7 @@ class PropertyProvider extends ChangeNotifier {
     }
     await loadProperties();
   }
-  
+
   /// Check connectivity and update offline status
   Future<void> checkConnectivity() async {
     try {
@@ -65,7 +65,7 @@ class PropertyProvider extends ChangeNotifier {
     }
     notifyListeners();
   }
-  
+
   Future<void> _syncPendingChanges() async {
     // Process pending changes when back online
     for (final change in List.from(_pendingChanges)) {
@@ -148,12 +148,12 @@ class PropertyProvider extends ChangeNotifier {
         SupabaseService.fetchExpensesForProperty(propertyId),
         SupabaseService.fetchRunningCostsForProperty(propertyId),
         SupabaseService.fetchEvaluationsForProperty(propertyId),
-        SupabaseService.fetchRentPeriodsForProperty(propertyId),  // NEW
+        SupabaseService.fetchRentPeriodsForProperty(propertyId), // NEW
       ]);
       _expenses = results[0] as List<MonthlyExpense>;
       _runningCosts = results[1] as List<RunningCost>;
       _evaluations = results[2] as List<SiteEvaluation>;
-      _rentPeriods = results[3] as List<RentPeriod>;  // NEW
+      _rentPeriods = results[3] as List<RentPeriod>; // NEW
     } catch (e) {
       _error = e.toString();
     }
@@ -175,8 +175,8 @@ class PropertyProvider extends ChangeNotifier {
   Future<MonthlyExpense> upsertExpense(MonthlyExpense expense) async {
     try {
       final saved = await SupabaseService.upsertExpense(expense);
-      final idx = _expenses
-          .indexWhere((e) => e.year == expense.year && e.month == expense.month);
+      final idx = _expenses.indexWhere(
+          (e) => e.year == expense.year && e.month == expense.month);
       if (idx >= 0) {
         _expenses[idx] = saved;
       } else {
@@ -193,8 +193,8 @@ class PropertyProvider extends ChangeNotifier {
       _pendingChanges.add({'type': 'expense', 'data': expense.toJson()});
       _isOffline = true;
       // Optimistically update UI
-      final idx = _expenses
-          .indexWhere((e) => e.year == expense.year && e.month == expense.month);
+      final idx = _expenses.indexWhere(
+          (e) => e.year == expense.year && e.month == expense.month);
       if (idx >= 0) {
         _expenses[idx] = expense;
       } else {
@@ -311,7 +311,7 @@ class PropertyProvider extends ChangeNotifier {
   /// Total running costs for a month (all categories)
   double totalRunningCostsForMonth(int year, int month) {
     return getRunningCostsForMonth(year, month)
-        .fold(0.0, (sum, c) => sum + c.amount);
+        .fold(0.0, (sum, c) => sum + c.monthlyEquivalent);
   }
 
   /// All-time totals for the selected property
@@ -322,17 +322,17 @@ class PropertyProvider extends ChangeNotifier {
         rates = 0,
         running = 0,
         received = 0,
-        muniPayments = 0;  // NEW
+        muniPayments = 0; // NEW
     for (final e in _expenses) {
       water += e.water;
       elec += e.electricity;
       interest += e.interest;
       rates += e.ratesTaxes + (e.annualLevy ?? 0);
       received += e.paymentReceived;
-      muniPayments += e.paymentToMunicipality;  // NEW
+      muniPayments += e.paymentToMunicipality; // NEW
     }
     for (final c in _runningCosts) {
-      running += c.amount;
+      running += c.monthlyEquivalent;
     }
     return {
       'water': water,
@@ -341,7 +341,7 @@ class PropertyProvider extends ChangeNotifier {
       'rates': rates,
       'running': running,
       'received': received,
-      'municipality_payments': muniPayments,  // NEW
+      'municipality_payments': muniPayments, // NEW
       'total': water + elec + interest + rates + running,
     };
   }
@@ -375,13 +375,14 @@ class PropertyProvider extends ChangeNotifier {
         'total': e.totalExpenses,
       };
     }
-    // merge running costs
+    // merge running costs using monthlyEquivalent
     for (final c in costs) {
       final key = '${c.year}-${c.month.toString().padLeft(2, '0')}';
       if (months.containsKey(key)) {
         months[key]!['running'] =
-            (months[key]!['running'] as double) + c.amount;
-        months[key]!['total'] = (months[key]!['total'] as double) + c.amount;
+            (months[key]!['running'] as double) + c.monthlyEquivalent;
+        months[key]!['total'] =
+            (months[key]!['total'] as double) + c.monthlyEquivalent;
       } else {
         months[key] = {
           'year': c.year,
@@ -390,9 +391,9 @@ class PropertyProvider extends ChangeNotifier {
           'electricity': 0.0,
           'interest': 0.0,
           'rates': 0.0,
-          'running': c.amount,
+          'running': c.monthlyEquivalent,
           'received': 0.0,
-          'total': c.amount,
+          'total': c.monthlyEquivalent,
         };
       }
     }
@@ -402,26 +403,26 @@ class PropertyProvider extends ChangeNotifier {
   }
 
   // ─── Filter & Search Methods ────────────────────────────────────────────────
-  
+
   /// Set year filter for expenses
   void setFilterYear(int? year) {
     _filterYear = year;
     notifyListeners();
   }
-  
+
   /// Set category filter for running costs
   void setFilterCategory(CostCategory? category) {
     _filterCategory = category;
     notifyListeners();
   }
-  
+
   /// Set amount range filter
   void setFilterAmountRange(double? min, double? max) {
     _filterMinAmount = min;
     _filterMaxAmount = max;
     notifyListeners();
   }
-  
+
   /// Clear all filters
   void clearFilters() {
     _filterYear = null;
@@ -430,49 +431,51 @@ class PropertyProvider extends ChangeNotifier {
     _filterMaxAmount = null;
     notifyListeners();
   }
-  
+
   /// Get filtered expenses based on current filters
   List<MonthlyExpense> get filteredExpenses {
     var result = _expenses;
-    
+
     if (_filterYear != null) {
       result = result.where((e) => e.year == _filterYear).toList();
     }
-    
+
     if (_filterMinAmount != null) {
-      result = result.where((e) => e.totalExpenses >= _filterMinAmount!).toList();
+      result =
+          result.where((e) => e.totalExpenses >= _filterMinAmount!).toList();
     }
-    
+
     if (_filterMaxAmount != null) {
-      result = result.where((e) => e.totalExpenses <= _filterMaxAmount!).toList();
+      result =
+          result.where((e) => e.totalExpenses <= _filterMaxAmount!).toList();
     }
-    
+
     return result;
   }
-  
+
   /// Get filtered running costs based on current filters
   List<RunningCost> get filteredRunningCosts {
     var result = _runningCosts;
-    
+
     if (_filterYear != null) {
       result = result.where((c) => c.year == _filterYear).toList();
     }
-    
+
     if (_filterCategory != null) {
       result = result.where((c) => c.category == _filterCategory).toList();
     }
-    
+
     if (_filterMinAmount != null) {
       result = result.where((c) => c.amount >= _filterMinAmount!).toList();
     }
-    
+
     if (_filterMaxAmount != null) {
       result = result.where((c) => c.amount <= _filterMaxAmount!).toList();
     }
-    
+
     return result;
   }
-  
+
   /// Search expenses by notes
   List<MonthlyExpense> searchExpensesByNotes(String query) {
     if (query.isEmpty) return _expenses;

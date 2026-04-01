@@ -286,11 +286,16 @@ class _OverviewScreenState extends State<OverviewScreen> {
       List<Map<String, dynamic>> allData,
       List<int> years,
       bool hasMultipleProperties) {
+    // Get years from monthly data AND running costs
+    final yearsFromData = allData.map((m) => m['year'] as int).toSet();
+    final yearsFromRunningCosts = prov.runningCosts.map((c) => c.year).toSet();
+    final allYears = {...yearsFromData, ...yearsFromRunningCosts}.toList()
+      ..sort();
+
+    final displayYears = [0, ...allYears]; // 0 = All time
     final yearData = _selectedYear == 0
         ? allData // All time
         : allData.where((m) => m['year'] == _selectedYear).toList();
-    final displayYears = [0, ...years];
-    displayYears.indexOf(_selectedYear);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 80),
@@ -301,6 +306,9 @@ class _OverviewScreenState extends State<OverviewScreen> {
             _buildPropertyScopeToggle(prov),
             const SizedBox(height: 16),
           ],
+          // Year selector
+          _buildYearSelector(allYears),
+          const SizedBox(height: 16),
           _buildYearTotalsCard(yearData),
           const SizedBox(height: 16),
           _buildAnnualRatesOverview(prov),
@@ -308,10 +316,66 @@ class _OverviewScreenState extends State<OverviewScreen> {
           _buildMonthlyBreakdownTable(yearData, prov),
           const SizedBox(height: 16),
           _buildRunningCostsByCategory(prov, _selectedYear),
-          if (years.length > 1) ...[
+          if (allYears.length > 1) ...[
             const SizedBox(height: 16),
-            _buildYearOverYearComparison(prov, years),
+            _buildYearOverYearComparison(prov, allYears),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildYearSelector(List<int> years) {
+    final displayYears = [0, ...years]; // 0 = All time
+    final currentIndex = displayYears.indexOf(_selectedYear);
+    final hasPrevious = currentIndex > 0;
+    final hasNext = currentIndex < displayYears.length - 1;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Theme.of(context).dividerColor),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: hasPrevious
+                ? () => setState(
+                    () => _selectedYear = displayYears[currentIndex - 1])
+                : null,
+            icon: const Icon(Icons.chevron_left),
+            color: hasPrevious
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).dividerColor,
+          ),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => setState(() => _selectedYear = 0),
+              child: Text(
+                _selectedYear == 0 ? 'All Time' : '$_selectedYear',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: _selectedYear == 0
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).textTheme.bodyLarge?.color,
+                ),
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: hasNext
+                ? () => setState(
+                    () => _selectedYear = displayYears[currentIndex + 1])
+                : null,
+            icon: const Icon(Icons.chevron_right),
+            color: hasNext
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).dividerColor,
+          ),
         ],
       ),
     );
@@ -1153,7 +1217,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
     final byCategory = <CostCategory, double>{};
     for (final cost in costs) {
       byCategory[cost.category] =
-          (byCategory[cost.category] ?? 0) + cost.amount;
+          (byCategory[cost.category] ?? 0) + cost.monthlyEquivalent;
     }
 
     final title = year == 0

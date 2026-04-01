@@ -511,19 +511,25 @@ class RunningCost {
       case CostFrequency.onceOff:
         return amount;
       case CostFrequency.daily:
-        return amount * 30.44;
+        return amount * 30;
       case CostFrequency.weekly:
-        return amount * 4.33;
+        return amount * 4;
       case CostFrequency.monthly:
         return amount;
       case CostFrequency.yearly:
         return amount / 12;
       case CostFrequency.everyXDays:
-        return amount * (30.44 / (interval ?? 1));
+        // If every X days, calculate how many times per month (30 days)
+        final daysInterval = interval ?? 1;
+        return amount * (30 / daysInterval);
       case CostFrequency.everyXWeeks:
-        return amount * (4.33 / (interval ?? 1));
+        // If every X weeks, calculate how many times per month (4 weeks)
+        final weeksInterval = interval ?? 1;
+        return amount * (4 / weeksInterval);
       case CostFrequency.everyXMonths:
-        return amount / (interval ?? 1);
+        // If every X months, divide the amount by the interval
+        final monthsInterval = interval ?? 1;
+        return amount / monthsInterval;
     }
   }
 

@@ -72,33 +72,38 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildNavBar() {
+    final primaryColor = Theme.of(context).colorScheme.primary;
     return BottomNavigationBar(
       currentIndex: _tab,
       onTap: (i) {
         setState(() => _tab = i);
       },
       type: BottomNavigationBarType.fixed,
-      selectedFontSize: 10,
+      selectedFontSize: 12,
       unselectedFontSize: 10,
-      items: const [
+      selectedItemColor: primaryColor,
+      unselectedItemColor: Colors.grey,
+      selectedLabelStyle: const TextStyle(fontWeight: FontWeight.w700),
+      unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal),
+      items: [
         BottomNavigationBarItem(
-          icon: Icon(Icons.dashboard_outlined),
-          activeIcon: Icon(Icons.dashboard),
+          icon: Icon(Icons.dashboard_outlined, color: Colors.grey),
+          activeIcon: Icon(Icons.dashboard, color: primaryColor),
           label: 'Home',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.calendar_today_outlined),
-          activeIcon: Icon(Icons.calendar_today),
+          icon: Icon(Icons.calendar_today_outlined, color: Colors.grey),
+          activeIcon: Icon(Icons.calendar_today, color: primaryColor),
           label: 'Monthly',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.bar_chart_outlined),
-          activeIcon: Icon(Icons.bar_chart),
+          icon: Icon(Icons.bar_chart_outlined, color: Colors.grey),
+          activeIcon: Icon(Icons.bar_chart, color: primaryColor),
           label: 'Summary',
         ),
         BottomNavigationBarItem(
-          icon: Icon(Icons.menu_outlined),
-          activeIcon: Icon(Icons.menu),
+          icon: Icon(Icons.menu_outlined, color: Colors.grey),
+          activeIcon: Icon(Icons.menu, color: primaryColor),
           label: 'Menu',
         ),
       ],

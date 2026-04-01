@@ -631,6 +631,8 @@ class _RunningCostsScreenState extends State<RunningCostsScreen> {
                             }
                             if (context.mounted) {
                               Navigator.pop(ctx);
+                              // Switch to the year of the saved cost
+                              setState(() => _selectedYear = year);
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   content: Text(existing == null
@@ -672,13 +674,13 @@ class _RunningCostsScreenState extends State<RunningCostsScreen> {
       case 'yearly':
         return amount / 12;
       case 'weekly':
-        return amount * 4.33;
+        return amount * 4;
       case 'times_per_week':
-        return amount * timesPerPeriod * 4.33;
+        return amount * timesPerPeriod * 4;
       case 'times_per_month':
         return amount * timesPerPeriod;
       case 'every_x_weeks':
-        return amount * (4.33 / everyXPeriods);
+        return amount * (4 / everyXPeriods);
       case 'every_x_months':
         return amount / everyXPeriods;
       default:
