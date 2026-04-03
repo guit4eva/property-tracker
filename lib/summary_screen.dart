@@ -14,8 +14,10 @@ class SummaryScreen extends StatefulWidget {
 }
 
 class _SummaryScreenState extends State<SummaryScreen> {
-  int _selectedYear = DateTime.now().year;
+  DateTime _selectedDate = DateTime(DateTime.now().year, DateTime.now().month);
   bool _showAllProperties = false; // Toggle for ALL vs selected property
+
+  int get _selectedYear => _selectedDate.year;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +39,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
           ..sort();
 
         if (years.isNotEmpty && !years.contains(_selectedYear)) {
-          _selectedYear = years.last;
+          _selectedDate = DateTime(years.last, DateTime.now().month);
         }
 
         final yearData =
@@ -58,22 +60,19 @@ class _SummaryScreenState extends State<SummaryScreen> {
           ),
           body: Column(
             children: [
-              // Year selector (always visible at top)
-              _buildYearSelector(years),
-              
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(20, 16, 20, 80),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // NEW: Toggle between selected property and ALL properties
+                      // Toggle between selected property and ALL properties
                       if (hasMultipleProperties) ...[
                         _buildPropertyScopeToggle(prov),
                         const SizedBox(height: 24),
                       ],
 
-                      _buildYearTotalsCard(yearData),
+                      _buildYearTotalsCard(yearData, years),
                       const SizedBox(height: 24),
                       _buildMonthlyBreakdownTable(yearData, prov),
                       const SizedBox(height: 24),
@@ -134,62 +133,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
     );
   }
 
-  Widget _buildYearSelector(List<int> years) {
-    final displayYears = [0, ...years]; // 0 = All time
-    final currentIndex = displayYears.indexOf(_selectedYear);
-    final hasPrevious = currentIndex > 0;
-    final hasNext = currentIndex < displayYears.length - 1;
-    
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        border: Border(
-          bottom: BorderSide(color: Theme.of(context).dividerColor),
-        ),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: hasPrevious
-                ? () => setState(() => _selectedYear = displayYears[currentIndex - 1])
-                : null,
-            icon: const Icon(Icons.chevron_left),
-            color: hasPrevious
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).dividerColor,
-          ),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _selectedYear = 0),
-              child: Text(
-                _selectedYear == 0 ? 'All Time' : '$_selectedYear',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                  color: _selectedYear == 0
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).textTheme.bodyLarge?.color,
-                ),
-              ),
-            ),
-          ),
-          IconButton(
-            onPressed: hasNext
-                ? () => setState(() => _selectedYear = displayYears[currentIndex + 1])
-                : null,
-            icon: const Icon(Icons.chevron_right),
-            color: hasNext
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).dividerColor,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildYearTotalsCard(List<Map<String, dynamic>> yearData) {
+  Widget _buildYearTotalsCard(
+      List<Map<String, dynamic>> yearData, List<int> years) {
     // Also get running costs for the selected year to include in totals
     final yearRunningCosts =
         Provider.of<PropertyProvider>(context, listen: false)
@@ -205,9 +150,18 @@ class _SummaryScreenState extends State<SummaryScreen> {
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: Theme.of(context).dividerColor),
         ),
-        child: Text(
-          'No data for $_selectedYear',
-          style: TextStyle(color: Theme.of(context).textTheme.bodySmall?.color),
+        child: Column(
+          children: [
+            Text(
+              'No data for $_selectedYear',
+              style: TextStyle(
+                  color: Theme.of(context).textTheme.bodySmall?.color),
+            ),
+            if (years.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              _buildYearSelector(years),
+            ],
+          ],
         ),
       );
     }
@@ -239,6 +193,9 @@ class _SummaryScreenState extends State<SummaryScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Year selector
+          _buildYearSelector(years),
+          const SizedBox(height: 16),
           Text(
             '$_selectedYear Annual Total',
             style: const TextStyle(
@@ -298,6 +255,59 @@ class _SummaryScreenState extends State<SummaryScreen> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildYearSelector(List<int> years) {
+    final currentIndex = years.indexOf(_selectedYear);
+    final hasPrevious = currentIndex > 0;
+    final hasNext = currentIndex < years.length - 1;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: hasPrevious
+                ? () => setState(() => _selectedDate =
+                    DateTime(years[currentIndex - 1], _selectedDate.month))
+                : null,
+            icon: const Icon(Icons.chevron_left),
+            color: hasPrevious
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).dividerColor,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+          Expanded(
+            child: Text(
+              '$_selectedYear',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: hasNext
+                ? () => setState(() => _selectedDate =
+                    DateTime(years[currentIndex + 1], _selectedDate.month))
+                : null,
+            icon: const Icon(Icons.chevron_right),
+            color: hasNext
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).dividerColor,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
           ),
         ],
       ),
@@ -414,20 +424,23 @@ class _SummaryScreenState extends State<SummaryScreen> {
                 final hasData = data != null;
                 final hasRunningCosts = runningCostsByMonth.containsKey(m);
                 final hasAnyData = hasData || hasRunningCosts;
-                
+
                 // Combine running costs from both sources
                 double runningTotal = 0;
                 if (hasData) runningTotal += data['running'] as double;
                 if (hasRunningCosts) runningTotal += runningCostsByMonth[m]!;
-                
+
                 // Calculate total including running costs
                 double total = 0;
                 if (hasData) {
-                  total = data['total'] as double + (hasRunningCosts ? runningCostsByMonth[m]! : 0);
+                  total = data['total'] as double;
+                  if (hasRunningCosts) {
+                    total += runningCostsByMonth[m]!;
+                  }
                 } else if (hasRunningCosts) {
                   total = runningCostsByMonth[m]!;
                 }
-                
+
                 final style = TextStyle(
                   color: hasAnyData
                       ? Theme.of(context).textTheme.bodyLarge?.color
@@ -466,9 +479,13 @@ class _SummaryScreenState extends State<SummaryScreen> {
                     style: style.copyWith(fontWeight: FontWeight.w700),
                   )),
                   DataCell(Text(
-                    hasAnyData && hasData ? _compact(data['received'] as double) : '—',
+                    hasAnyData && hasData
+                        ? _compact(data['received'] as double)
+                        : '—',
                     style: style.copyWith(
-                        color: hasAnyData && hasData ? const Color(0xFF6B8E6B) : null),
+                        color: hasAnyData && hasData
+                            ? const Color(0xFF6B8E6B)
+                            : null),
                   )),
                 ]);
               }).toList(),
@@ -586,9 +603,8 @@ class _SummaryScreenState extends State<SummaryScreen> {
         : prov.monthlyTotalsForChart;
 
     // Get running costs for all years
-    final allRunningCosts = _showAllProperties
-        ? prov.allRunningCosts
-        : prov.runningCosts;
+    final allRunningCosts =
+        _showAllProperties ? prov.allRunningCosts : prov.runningCosts;
 
     List<Map<String, double>> yearTotals = years.map((y) {
       final yd = allData.where((m) => m['year'] == y).toList();
@@ -598,10 +614,12 @@ class _SummaryScreenState extends State<SummaryScreen> {
           .fold(0.0, (sum, c) => sum + c.monthlyEquivalent);
       return {
         'year': y.toDouble(),
-        'total': yd.fold(0.0, (s, m) => s + (m['total'] as double)) + yearRunningCosts,
+        'total': yd.fold(0.0, (s, m) => s + (m['total'] as double)) +
+            yearRunningCosts,
         'water': yd.fold(0.0, (s, m) => s + (m['water'] as double)),
         'electricity': yd.fold(0.0, (s, m) => s + (m['electricity'] as double)),
-        'running': yd.fold(0.0, (s, m) => s + (m['running'] as double)) + yearRunningCosts,
+        'running': yd.fold(0.0, (s, m) => s + (m['running'] as double)) +
+            yearRunningCosts,
       };
     }).toList();
 

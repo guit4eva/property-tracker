@@ -30,7 +30,9 @@
       "Bash(\\n')\n            new_lines.append(' *)",
       "Bash(newamount)",
       "Bash(widget.year, *)",
-      "Bash(ctx)"
+      "Bash(ctx)",
+      "Bash(rm *)",
+      "Bash(dart *)"
     ]
   },
   "$version": 3

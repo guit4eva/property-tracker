@@ -5,6 +5,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'providers/property_provider.dart';
 import 'models/models.dart';
 import 'widgets/shared_widgets.dart';
+import 'widgets/year_selector.dart';
 
 enum ChartView { overview, water, electricity, interest, rates, running }
 
@@ -72,11 +73,18 @@ class OverviewScreen extends StatefulWidget {
 
 class _OverviewScreenState extends State<OverviewScreen> {
   ChartView _view = ChartView.overview;
-  int _yearFilter = 0; // 0 = all
-  int _selectedYear = DateTime.now().year;
+  DateTime _selectedDate = DateTime(DateTime.now().year, DateTime.now().month);
   bool _showAllProperties = false;
   String _selectedTab = 'summary'; // 'charts' or 'summary'
   late PageController _yearPageController;
+
+  int get _selectedYear => _selectedDate.year;
+
+  void _setSelectedDate(DateTime date) {
+    setState(() {
+      _selectedDate = date;
+    });
+  }
 
   @override
   void initState() {
@@ -130,15 +138,25 @@ class _OverviewScreenState extends State<OverviewScreen> {
         if (years.isNotEmpty &&
             _selectedYear != 0 &&
             !years.contains(_selectedYear)) {
-          _selectedYear = years.last;
+          _selectedDate = DateTime(years.last, DateTime.now().month);
         }
 
         return Scaffold(
           body: Column(
             children: [
+              // Year selector (exactly like monthly screen but for years only)
+              YearSelector(
+                selectedYear: _selectedYear,
+                years: years,
+                onYearChanged: (year) {
+                  setState(() {
+                    _selectedDate = DateTime(year, _selectedDate.month);
+                  });
+                },
+              ),
               // Tab toggle
               Container(
-                margin: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                margin: const EdgeInsets.fromLTRB(20, 0, 20, 0),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(12),
@@ -148,7 +166,11 @@ class _OverviewScreenState extends State<OverviewScreen> {
                   children: [
                     Expanded(
                       child: InkWell(
-                        onTap: () => setState(() => _selectedTab = 'summary'),
+                        onTap: () {
+                          setState(() {
+                            _selectedTab = 'summary';
+                          });
+                        },
                         borderRadius: BorderRadius.circular(12),
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -195,7 +217,11 @@ class _OverviewScreenState extends State<OverviewScreen> {
                     ),
                     Expanded(
                       child: InkWell(
-                        onTap: () => setState(() => _selectedTab = 'charts'),
+                        onTap: () {
+                          setState(() {
+                            _selectedTab = 'charts';
+                          });
+                        },
                         borderRadius: BorderRadius.circular(12),
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -262,22 +288,55 @@ class _OverviewScreenState extends State<OverviewScreen> {
       List<Map<String, dynamic>> allData,
       List<int> years,
       bool hasMultipleProperties) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (hasMultipleProperties) ...[
-            _buildPropertyScopeToggle(prov),
-            const SizedBox(height: 16),
-          ],
-          _buildChartTypeSelector(),
-          const SizedBox(height: 20),
-          _buildChart(prov, allData),
-          const SizedBox(height: 24),
-          _buildLegend(prov),
-        ],
-      ),
+    // Get years from monthly data AND running costs
+    final yearsFromData = allData.map((m) => m['year'] as int).toSet();
+    final yearsFromRunningCosts = prov.runningCosts.map((c) => c.year).toSet();
+    final allYears = {...yearsFromData, ...yearsFromRunningCosts}.toList()
+      ..sort();
+
+    return Column(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onHorizontalDragEnd: (details) {
+              if (details.primaryVelocity != null) {
+                final currentIndex = allYears.indexOf(_selectedYear);
+                if (details.primaryVelocity! > 0 && currentIndex > 0) {
+                  // Swipe right = previous year
+                  setState(() {
+                    _selectedDate = DateTime(
+                        allYears[currentIndex - 1], _selectedDate.month);
+                  });
+                } else if (details.primaryVelocity! < 0 &&
+                    currentIndex < allYears.length - 1) {
+                  // Swipe left = next year
+                  setState(() {
+                    _selectedDate = DateTime(
+                        allYears[currentIndex + 1], _selectedDate.month);
+                  });
+                }
+              }
+            },
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (hasMultipleProperties) ...[
+                    _buildPropertyScopeToggle(prov),
+                    const SizedBox(height: 16),
+                  ],
+                  _buildChartTypeSelector(),
+                  const SizedBox(height: 20),
+                  _buildChart(prov, allData),
+                  const SizedBox(height: 24),
+                  _buildLegend(prov),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -292,92 +351,55 @@ class _OverviewScreenState extends State<OverviewScreen> {
     final allYears = {...yearsFromData, ...yearsFromRunningCosts}.toList()
       ..sort();
 
-    final displayYears = [0, ...allYears]; // 0 = All time
     final yearData = _selectedYear == 0
         ? allData // All time
         : allData.where((m) => m['year'] == _selectedYear).toList();
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 80),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (hasMultipleProperties) ...[
-            _buildPropertyScopeToggle(prov),
-            const SizedBox(height: 16),
-          ],
-          // Year selector
-          _buildYearSelector(allYears),
-          const SizedBox(height: 16),
-          _buildYearTotalsCard(yearData),
-          const SizedBox(height: 16),
-          _buildAnnualRatesOverview(prov),
-          const SizedBox(height: 16),
-          _buildMonthlyBreakdownTable(yearData, prov),
-          const SizedBox(height: 16),
-          _buildRunningCostsByCategory(prov, _selectedYear),
-          if (allYears.length > 1) ...[
-            const SizedBox(height: 16),
-            _buildYearOverYearComparison(prov, allYears),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildYearSelector(List<int> years) {
-    final displayYears = [0, ...years]; // 0 = All time
-    final currentIndex = displayYears.indexOf(_selectedYear);
-    final hasPrevious = currentIndex > 0;
-    final hasNext = currentIndex < displayYears.length - 1;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Theme.of(context).dividerColor),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            onPressed: hasPrevious
-                ? () => setState(
-                    () => _selectedYear = displayYears[currentIndex - 1])
-                : null,
-            icon: const Icon(Icons.chevron_left),
-            color: hasPrevious
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).dividerColor,
-          ),
-          Expanded(
-            child: GestureDetector(
-              onTap: () => setState(() => _selectedYear = 0),
-              child: Text(
-                _selectedYear == 0 ? 'All Time' : '$_selectedYear',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16,
-                  color: _selectedYear == 0
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).textTheme.bodyLarge?.color,
-                ),
+    return Column(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onHorizontalDragEnd: (details) {
+              if (details.primaryVelocity != null) {
+                final currentIndex = allYears.indexOf(_selectedYear);
+                if (details.primaryVelocity! > 0 && currentIndex > 0) {
+                  // Swipe right = previous year
+                  setState(() => _selectedDate = DateTime(
+                      allYears[currentIndex - 1], _selectedDate.month));
+                } else if (details.primaryVelocity! < 0 &&
+                    currentIndex < allYears.length - 1) {
+                  // Swipe left = next year
+                  setState(() => _selectedDate = DateTime(
+                      allYears[currentIndex + 1], _selectedDate.month));
+                }
+              }
+            },
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 80),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (hasMultipleProperties) ...[
+                    _buildPropertyScopeToggle(prov),
+                    const SizedBox(height: 16),
+                  ],
+                  _buildYearTotalsCard(yearData),
+                  const SizedBox(height: 16),
+                  _buildAnnualRatesOverview(prov),
+                  const SizedBox(height: 16),
+                  _buildMonthlyBreakdownTable(yearData, prov),
+                  const SizedBox(height: 16),
+                  _buildRunningCostsByCategory(prov, _selectedYear),
+                  if (allYears.length > 1) ...[
+                    const SizedBox(height: 16),
+                    _buildYearOverYearComparison(prov, allYears),
+                  ],
+                ],
               ),
             ),
           ),
-          IconButton(
-            onPressed: hasNext
-                ? () => setState(
-                    () => _selectedYear = displayYears[currentIndex + 1])
-                : null,
-            icon: const Icon(Icons.chevron_right),
-            color: hasNext
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).dividerColor,
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -524,8 +546,8 @@ class _OverviewScreenState extends State<OverviewScreen> {
   Widget _buildChart(
       PropertyProvider prov, List<Map<String, dynamic>> allData) {
     var data = allData;
-    if (_yearFilter != 0) {
-      data = data.where((m) => m['year'] == _yearFilter).toList();
+    if (_selectedYear != 0) {
+      data = data.where((m) => m['year'] == _selectedYear).toList();
     }
 
     if (data.isEmpty) {
@@ -540,7 +562,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
     // Get unique years for navigation
     final years = allData.map((m) => m['year'] as int).toSet().toList()..sort();
     final displayYears = [0, ...years]; // 0 = All time
-    displayYears.indexOf(_yearFilter);
+    displayYears.indexOf(_selectedYear);
 
     return Column(
       children: [
@@ -551,7 +573,10 @@ class _OverviewScreenState extends State<OverviewScreen> {
             controller: _yearPageController,
             itemCount: displayYears.length,
             onPageChanged: (index) {
-              setState(() => _yearFilter = displayYears[index]);
+              setState(() {
+                _selectedDate =
+                    DateTime(displayYears[index], _selectedDate.month);
+              });
             },
             itemBuilder: (ctx, index) {
               final year = displayYears[index];
@@ -763,8 +788,8 @@ class _OverviewScreenState extends State<OverviewScreen> {
 
   Widget _buildLegend(PropertyProvider prov) {
     var data = prov.monthlyTotalsForChart;
-    if (_yearFilter != 0) {
-      data = data.where((m) => m['year'] == _yearFilter).toList();
+    if (_selectedYear != 0) {
+      data = data.where((m) => m['year'] == _selectedYear).toList();
     }
 
     final key = _view.key;
@@ -827,11 +852,19 @@ class _OverviewScreenState extends State<OverviewScreen> {
   // Summary view widgets
 
   Widget _buildYearTotalsCard(List<Map<String, dynamic>> yearData) {
+    // Get running costs for the selected year
+    final prov = Provider.of<PropertyProvider>(context, listen: false);
+    final yearRunningCosts = _selectedYear == 0
+        ? prov.runningCosts.fold(0.0, (sum, c) => sum + c.monthlyEquivalent)
+        : prov.runningCosts
+            .where((c) => c.year == _selectedYear)
+            .fold(0.0, (sum, c) => sum + c.monthlyEquivalent);
+
     double totalWater = 0,
         totalElec = 0,
         totalInterest = 0,
         totalRates = 0,
-        totalRunning = 0,
+        totalRunning = yearRunningCosts,
         totalIncome = 0;
     for (final m in yearData) {
       totalWater += m['water'] as double;
@@ -845,9 +878,6 @@ class _OverviewScreenState extends State<OverviewScreen> {
     final totalExpenses =
         totalWater + totalElec + totalInterest + totalRates + totalRunning;
     final deficit = totalExpenses - totalIncome;
-
-    final title =
-        _selectedYear == 0 ? 'All-Time Summary' : '$_selectedYear Summary';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -869,15 +899,6 @@ class _OverviewScreenState extends State<OverviewScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            title,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
             formatZAR(totalExpenses),
             style: const TextStyle(
               fontSize: 32,
@@ -889,12 +910,12 @@ class _OverviewScreenState extends State<OverviewScreen> {
             spacing: 12,
             runSpacing: 8,
             children: [
-              _miniStat('Water', totalWater, const Color(0xFF42A5F5)),
-              _miniStat('Electricity', totalElec, const Color(0xFFF5C842)),
-              _miniStat('Interest', totalInterest, const Color(0xFFEF5350)),
-              _miniStat('Rates', totalRates, const Color(0xFFAB47BC)),
-              _miniStat('Running', totalRunning, const Color(0xFF4CAF7D)),
-              _miniStat('Income', totalIncome, const Color(0xFF6B8E6B)),
+              _miniStat('💧 Water', totalWater, const Color(0xFF42A5F5)),
+              _miniStat('⚡ Electricity', totalElec, const Color(0xFFF5C842)),
+              _miniStat('📈 Interest', totalInterest, const Color(0xFFEF5350)),
+              _miniStat('🏛 Rates', totalRates, const Color(0xFFAB47BC)),
+              _miniStat('🔧 Running', totalRunning, const Color(0xFF4CAF7D)),
+              _miniStat('💰 Income', totalIncome, const Color(0xFF6B8E6B)),
             ],
           ),
           const SizedBox(height: 16),

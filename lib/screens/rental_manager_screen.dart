@@ -177,65 +177,66 @@ class _RentalManagerScreenState extends State<RentalManagerScreen> {
           margin: const EdgeInsets.only(bottom: 16),
           elevation: 2,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: InkWell(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             onTap: () => _showAddEditDialog(period: period),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
                       Container(
-                        width: 56,
-                        height: 56,
+                        width: 44,
+                        height: 44,
                         decoration: BoxDecoration(
                           color: isCurrent
                               ? const Color(0xFF4CAF50).withValues(alpha: 0.15)
                               : Colors.grey.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(16),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
                           isCurrent ? Icons.home : Icons.history_edu,
                           color:
                               isCurrent ? const Color(0xFF4CAF50) : Colors.grey,
-                          size: 28,
+                          size: 22,
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
+                            Wrap(
+                              runSpacing: 2,
                               children: [
                                 Text(
                                   'R${period.rentalAmount.toStringAsFixed(2)}',
                                   style: const TextStyle(
-                                    fontSize: 22,
+                                    fontSize: 18,
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
                                 if (isCurrent) ...[
-                                  const SizedBox(width: 8),
+                                  const SizedBox(width: 6),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 10,
-                                      vertical: 4,
+                                      horizontal: 8,
+                                      vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFF4CAF50)
                                           .withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(12),
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: const Text(
                                       'Current',
                                       style: TextStyle(
                                         color: Color(0xFF4CAF50),
-                                        fontSize: 12,
+                                        fontSize: 10,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -243,12 +244,12 @@ class _RentalManagerScreenState extends State<RentalManagerScreen> {
                                 ],
                               ],
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Text(
                               _formatDateRange(
                                   period.startDate, period.endDate),
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: 12,
                                 color: Theme.of(context)
                                     .textTheme
                                     .bodyMedium

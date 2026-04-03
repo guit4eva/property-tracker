@@ -86,14 +86,14 @@ class _RunningCostsScreenState extends State<RunningCostsScreen> {
       _buildSummaryCard(yearCosts),
       if (activeCosts.isNotEmpty) ...[
         Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Row(children: [
               Icon(Icons.play_circle_outline,
-                  size: 18, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 8),
+                  size: 16, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 6),
               Text('Active Running Costs',
                   style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: Theme.of(context).colorScheme.primary))
             ]))
@@ -101,7 +101,7 @@ class _RunningCostsScreenState extends State<RunningCostsScreen> {
       Expanded(
           flex: 2,
           child: ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               itemCount:
                   activeCosts.isEmpty ? yearCosts.length : activeCosts.length,
               itemBuilder: (ctx, i) {
@@ -112,22 +112,22 @@ class _RunningCostsScreenState extends State<RunningCostsScreen> {
               })),
       if (activeCosts.isNotEmpty && previousCosts.isNotEmpty) ...[
         Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: Row(children: [
               Icon(Icons.history,
-                  size: 18,
+                  size: 16,
                   color: Theme.of(context).textTheme.bodySmall?.color),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Text('Previous Running Costs',
                   style: TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: Theme.of(context).textTheme.bodySmall?.color))
             ])),
         Expanded(
             flex: 1,
             child: ListView.builder(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
                 itemCount: previousCosts.length,
                 itemBuilder: (ctx, i) =>
                     _buildCostCard(previousCosts[i], prov, isActive: false))),
@@ -140,36 +140,42 @@ class _RunningCostsScreenState extends State<RunningCostsScreen> {
         costs.fold<double>(0, (sum, c) => sum + c.monthlyEquivalent);
     return Container(
         margin: const EdgeInsets.symmetric(horizontal: 16),
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
             gradient: LinearGradient(colors: [
               const Color(0xFF6B8E6B).withValues(alpha: 0.15),
               const Color(0xFF81C784).withValues(alpha: 0.1)
             ], begin: Alignment.topLeft, end: Alignment.bottomRight),
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(
                 color: const Color(0xFF6B8E6B).withValues(alpha: 0.4),
-                width: 2)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Total Monthly Running Costs',
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.primary,
-                  letterSpacing: 0.5)),
-          const SizedBox(height: 8),
-          Text(widgets.formatZAR(totalMonthly),
-              style: const TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF6B8E6B))),
-          const SizedBox(height: 12),
-          Text(
-              '${costs.length} cost${costs.length != 1 ? 's' : ''} for $_selectedYear',
-              style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).textTheme.bodySmall?.color)),
-        ]));
+                width: 1.5)),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Total Monthly Running Costs',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.primary,
+                            letterSpacing: 0.5)),
+                    const SizedBox(height: 4),
+                    Text(widgets.formatZAR(totalMonthly),
+                        style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: Color(0xFF6B8E6B))),
+                  ]),
+            ),
+            Text('${costs.length} cost${costs.length != 1 ? 's' : ''}',
+                style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).textTheme.bodySmall?.color)),
+          ],
+        ));
   }
 
   Widget _buildCostCard(RunningCost cost, PropertyProvider prov,
@@ -177,32 +183,33 @@ class _RunningCostsScreenState extends State<RunningCostsScreen> {
     final isPast =
         cost.endDate != null && cost.endDate!.isBefore(DateTime.now());
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 8),
       color: isActive ? null : Theme.of(context).colorScheme.surface,
       child: ListTile(
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           leading: Container(
-              width: 48,
-              height: 48,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                   color: isPast
                       ? Colors.grey.withValues(alpha: 0.15)
                       : cost.category.color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(10)),
               child: Icon(cost.category.icon,
-                  color: isPast ? Colors.grey : cost.category.color)),
+                  color: isPast ? Colors.grey : cost.category.color, size: 20)),
           title: Text('${widgets.formatZAR(cost.monthlyEquivalent)}/mo',
               style: TextStyle(
                   fontWeight: FontWeight.bold,
-                  fontSize: 16,
+                  fontSize: 14,
                   color: isPast ? Colors.grey : const Color(0xFF6B8E6B))),
           subtitle:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(cost.description ?? cost.category.label,
                 style: TextStyle(
                     fontWeight: FontWeight.w500,
+                    fontSize: 12,
                     color: isPast ? Colors.grey.withValues(alpha: 0.7) : null)),
             const SizedBox(height: 2),
             Row(children: [

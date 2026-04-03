@@ -16,6 +16,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  int? _selectedPieSection;
   bool _showGraphs = false;
 
   @override
@@ -331,65 +332,54 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final data = [
       PieChartSectionData(
         value: totals['water']!,
-        title: 'Water\n${formatCompact(totals['water']!)}',
+        title: '',
         color: const Color(0xFF42A5F5),
-        radius: 80,
-        titleStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
+        radius: _selectedPieSection == 0 ? 90 : 80,
+        showTitle: false,
       ),
       PieChartSectionData(
         value: totals['electricity']!,
-        title: 'Electricity\n${formatCompact(totals['electricity']!)}',
+        title: '',
         color: const Color(0xFFF5C842),
-        radius: 80,
-        titleStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
+        radius: _selectedPieSection == 1 ? 90 : 80,
+        showTitle: false,
       ),
       PieChartSectionData(
         value: totals['interest']!,
-        title: 'Interest\n${formatCompact(totals['interest']!)}',
+        title: '',
         color: const Color(0xFFEF5350),
-        radius: 80,
-        titleStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
+        radius: _selectedPieSection == 2 ? 90 : 80,
+        showTitle: false,
       ),
       PieChartSectionData(
         value: totals['rates']!,
-        title: 'Rates\n${formatCompact(totals['rates']!)}',
+        title: '',
         color: const Color(0xFFAB47BC),
-        radius: 80,
-        titleStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
+        radius: _selectedPieSection == 3 ? 90 : 80,
+        showTitle: false,
       ),
       PieChartSectionData(
         value: totals['running']!,
-        title: 'Running\n${formatCompact(totals['running']!)}',
+        title: '',
         color: const Color(0xFF6B8E6B),
-        radius: 80,
-        titleStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
+        radius: _selectedPieSection == 4 ? 90 : 80,
+        showTitle: false,
       ),
     ].where((section) => section.value > 0).toList();
+
+    final labels = ['Water', 'Electricity', 'Interest', 'Rates', 'Running'];
+    final colors = [
+      const Color(0xFF42A5F5),
+      const Color(0xFFF5C842),
+      const Color(0xFFEF5350),
+      const Color(0xFFAB47BC),
+      const Color(0xFF6B8E6B),
+    ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionHeader(title: 'Expense Distribution'),
+        const SectionHeader(title: 'Chart'),
         const SizedBox(height: 14),
         Card(
           child: Padding(
@@ -437,15 +427,85 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ],
                           ),
                         )
-                      : PieChart(
-                          PieChartData(
-                            sections: data,
-                            sectionsSpace: 2,
-                            centerSpaceRadius: 40,
-                            centerSpaceColor: Colors.transparent,
+                      : GestureDetector(
+                          onTap: () {
+                            setState(() => _selectedPieSection = null);
+                          },
+                          child: PieChart(
+                            PieChartData(
+                              sections: data.map((section) {
+                                final index = data.indexOf(section);
+                                final isSelected = _selectedPieSection == index;
+                                return section.copyWith(
+                                  radius: isSelected ? 90 : 80,
+                                  title: isSelected
+                                      ? '${labels[index]}\n${formatZAR(section.value)}'
+                                      : '',
+                                  titleStyle: TextStyle(
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.transparent,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                );
+                              }).toList(),
+                              sectionsSpace: 2,
+                              centerSpaceRadius: 40,
+                              centerSpaceColor: Colors.transparent,
+                              pieTouchData: PieTouchData(
+                                touchCallback: (event, response) {
+                                  if (response != null &&
+                                      response.touchedSection != null &&
+                                      event is FlTapUpEvent) {
+                                    setState(() {
+                                      _selectedPieSection = response
+                                          .touchedSection!.touchedSectionIndex;
+                                    });
+                                  }
+                                },
+                              ),
+                            ),
                           ),
                         ),
                 ),
+                if (_selectedPieSection != null && data.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${labels[_selectedPieSection!]}: ${formatZAR(data[_selectedPieSection!].value)}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: () =>
+                              setState(() => _selectedPieSection = null),
+                          child: Icon(
+                            Icons.close,
+                            size: 16,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (data.isNotEmpty) ...[
                   const SizedBox(height: 16),
                   Wrap(
