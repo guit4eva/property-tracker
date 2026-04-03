@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../providers/property_provider.dart';
 import '../dashboard_screen.dart';
 import '../overview_screen.dart';
+import '../screens/properties_screen.dart';
 import 'entry_screen.dart';
 import 'running_costs_screen.dart';
 
@@ -126,29 +127,77 @@ class MenuPage extends StatelessWidget {
             children: [
               // Property selector
               if (prov.properties.isNotEmpty) ...[
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-                  child: Row(
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Theme.of(context).dividerColor),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(
-                        Icons.home_work,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 18,
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.home_work,
+                            color: Theme.of(context).colorScheme.primary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Current Property',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall
+                                    ?.color,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.swap_horiz, size: 20),
+                            onPressed: () =>
+                                _showPropertySelector(context, prov),
+                            tooltip: 'Switch Property',
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(height: 8),
                       Text(
                         prov.selectedProperty?.name ?? 'None selected',
                         style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
               ],
+
+              // Property management
+              _buildMenuItem(
+                context,
+                icon: Icons.home_work_outlined,
+                iconColor: const Color(0xFF42A5F5),
+                title: 'Manage Properties',
+                subtitle: 'Add, edit or remove properties',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const PropertiesScreen(),
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 12),
 
               // Menu items
               _buildMenuItem(
@@ -204,6 +253,46 @@ class MenuPage extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+
+  void _showPropertySelector(BuildContext context, PropertyProvider prov) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Select Property'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: prov.properties.length,
+            itemBuilder: (ctx, i) {
+              final prop = prov.properties[i];
+              final isSelected = prov.selectedProperty?.id == prop.id;
+              return ListTile(
+                leading: Icon(
+                  isSelected ? Icons.check_circle : Icons.home_outlined,
+                  color:
+                      isSelected ? Theme.of(context).colorScheme.primary : null,
+                ),
+                title: Text(prop.name),
+                subtitle: prop.address != null ? Text(prop.address!) : null,
+                selected: isSelected,
+                onTap: () {
+                  prov.selectProperty(prop);
+                  Navigator.pop(ctx);
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+        ],
       ),
     );
   }

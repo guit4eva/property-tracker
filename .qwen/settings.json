@@ -32,7 +32,9 @@
       "Bash(widget.year, *)",
       "Bash(ctx)",
       "Bash(rm *)",
-      "Bash(dart *)"
+      "Bash(dart *)",
+      "Bash(head *)",
+      "Bash(mv *)"
     ]
   },
   "$version": 3

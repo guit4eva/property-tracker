@@ -534,12 +534,15 @@ class RunningCost {
   }
 
   String get frequencyDisplay {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
     if (interval != null && interval! > 1) {
       switch (frequency) {
         case CostFrequency.everyXDays:
           return 'Every $interval days';
         case CostFrequency.everyXWeeks:
-          return 'Every $interval weeks';
+          final dayStr = dayOfWeek != null ? ' (${days[dayOfWeek! - 1]})' : '';
+          return 'Every $interval weeks$dayStr';
         case CostFrequency.everyXMonths:
           return 'Every $interval months';
         default:
@@ -547,8 +550,7 @@ class RunningCost {
       }
     }
     if (dayOfWeek != null) {
-      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-      return days[dayOfWeek! - 1];
+      return 'Every ${frequency.label.toLowerCase()} (${days[dayOfWeek! - 1]})';
     }
     if (dayOfMonth != null) {
       final suffix = _getOrdinalSuffix(dayOfMonth!);

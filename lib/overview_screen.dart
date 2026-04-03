@@ -77,6 +77,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
   bool _showAllProperties = false;
   String _selectedTab = 'summary'; // 'charts' or 'summary'
   late PageController _yearPageController;
+  late PageController _summaryPageController;
 
   int get _selectedYear => _selectedDate.year;
 
@@ -93,11 +94,13 @@ class _OverviewScreenState extends State<OverviewScreen> {
       _view = widget.initialView!;
     }
     _yearPageController = PageController(initialPage: 0);
+    _summaryPageController = PageController();
   }
 
   @override
   void dispose() {
     _yearPageController.dispose();
+    _summaryPageController.dispose();
     super.dispose();
   }
 
@@ -147,11 +150,21 @@ class _OverviewScreenState extends State<OverviewScreen> {
               // Year selector (exactly like monthly screen but for years only)
               YearSelector(
                 selectedYear: _selectedYear,
-                years: years,
+                years: [0, ...years], // Include "All Time" option
                 onYearChanged: (year) {
                   setState(() {
                     _selectedDate = DateTime(year, _selectedDate.month);
                   });
+                  // Sync PageView to the selected year
+                  final displayYears = [0, ...years];
+                  final index = displayYears.indexOf(year);
+                  if (index >= 0 && _summaryPageController.hasClients) {
+                    _summaryPageController.animateToPage(
+                      index,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeInOut,
+                    );
+                  }
                 },
               ),
               // Tab toggle
@@ -351,55 +364,48 @@ class _OverviewScreenState extends State<OverviewScreen> {
     final allYears = {...yearsFromData, ...yearsFromRunningCosts}.toList()
       ..sort();
 
-    final yearData = _selectedYear == 0
-        ? allData // All time
-        : allData.where((m) => m['year'] == _selectedYear).toList();
+    // Add "All Time" as year 0 at the beginning
+    final displayYears = [0, ...allYears];
 
-    return Column(
-      children: [
-        Expanded(
-          child: GestureDetector(
-            onHorizontalDragEnd: (details) {
-              if (details.primaryVelocity != null) {
-                final currentIndex = allYears.indexOf(_selectedYear);
-                if (details.primaryVelocity! > 0 && currentIndex > 0) {
-                  // Swipe right = previous year
-                  setState(() => _selectedDate = DateTime(
-                      allYears[currentIndex - 1], _selectedDate.month));
-                } else if (details.primaryVelocity! < 0 &&
-                    currentIndex < allYears.length - 1) {
-                  // Swipe left = next year
-                  setState(() => _selectedDate = DateTime(
-                      allYears[currentIndex + 1], _selectedDate.month));
-                }
-              }
-            },
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 80),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (hasMultipleProperties) ...[
-                    _buildPropertyScopeToggle(prov),
-                    const SizedBox(height: 16),
-                  ],
-                  _buildYearTotalsCard(yearData),
-                  const SizedBox(height: 16),
-                  _buildAnnualRatesOverview(prov),
-                  const SizedBox(height: 16),
-                  _buildMonthlyBreakdownTable(yearData, prov),
-                  const SizedBox(height: 16),
-                  _buildRunningCostsByCategory(prov, _selectedYear),
-                  if (allYears.length > 1) ...[
-                    const SizedBox(height: 16),
-                    _buildYearOverYearComparison(prov, allYears),
-                  ],
-                ],
-              ),
-            ),
+    return PageView.builder(
+      controller: _summaryPageController,
+      itemCount: displayYears.length,
+      onPageChanged: (index) {
+        setState(() {
+          _selectedDate = DateTime(displayYears[index], _selectedDate.month);
+        });
+      },
+      itemBuilder: (ctx, index) {
+        final year = displayYears[index];
+        final yearData = year == 0
+            ? allData
+            : allData.where((m) => m['year'] == year).toList();
+
+        return SingleChildScrollView(
+          key: PageStorageKey('summary_year_$year'),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 80),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (hasMultipleProperties) ...[
+                _buildPropertyScopeToggle(prov),
+                const SizedBox(height: 16),
+              ],
+              _buildYearTotalsCard(yearData),
+              const SizedBox(height: 16),
+              _buildAnnualRatesOverview(prov),
+              const SizedBox(height: 16),
+              _buildMonthlyBreakdownTable(yearData, prov),
+              const SizedBox(height: 16),
+              _buildRunningCostsByCategory(prov, year),
+              if (allYears.length > 1) ...[
+                const SizedBox(height: 16),
+                _buildYearOverYearComparison(prov, allYears),
+              ],
+            ],
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 
@@ -854,26 +860,236 @@ class _OverviewScreenState extends State<OverviewScreen> {
   Widget _buildYearTotalsCard(List<Map<String, dynamic>> yearData) {
     // Get running costs for the selected year
     final prov = Provider.of<PropertyProvider>(context, listen: false);
-    final yearRunningCosts = _selectedYear == 0
-        ? prov.runningCosts.fold(0.0, (sum, c) => sum + c.monthlyEquivalent)
-        : prov.runningCosts
-            .where((c) => c.year == _selectedYear)
-            .fold(0.0, (sum, c) => sum + c.monthlyEquivalent);
+    final now = DateTime.now();
+
+    // Calculate running costs that are active for the selected year
+    double yearRunningCosts = 0;
+    if (_selectedYear == 0) {
+      // All time: calculate actual occurrences across all years for each cost
+      for (final cost in prov.runningCosts) {
+        final costStart = cost.startDate;
+        final costEnd = cost.endDate ?? now;
+
+        // Calculate total occurrences from start to end
+        int occurrences = 0;
+        switch (cost.frequency) {
+          case CostFrequency.monthly:
+            occurrences = (costEnd.year - costStart.year) * 12 +
+                (costEnd.month - costStart.month) +
+                1;
+            break;
+          case CostFrequency.weekly:
+            if (cost.dayOfWeek != null) {
+              int startDayOfWeek = costStart.weekday;
+              int targetDay = cost.dayOfWeek!;
+              int daysUntilTarget = (targetDay - startDayOfWeek + 7) % 7;
+              DateTime firstOccurrence =
+                  costStart.add(Duration(days: daysUntilTarget));
+              if (!firstOccurrence.isAfter(costEnd)) {
+                int totalDays = costEnd.difference(firstOccurrence).inDays;
+                occurrences = (totalDays ~/ 7) + 1;
+              }
+            } else {
+              final days = costEnd.difference(costStart).inDays;
+              occurrences = (days ~/ 7) + 1;
+            }
+            break;
+          case CostFrequency.yearly:
+            occurrences = costEnd.year - costStart.year + 1;
+            break;
+          case CostFrequency.everyXWeeks:
+            if (cost.dayOfWeek != null) {
+              int startDayOfWeek = costStart.weekday;
+              int targetDay = cost.dayOfWeek!;
+              int daysUntilTarget = (targetDay - startDayOfWeek + 7) % 7;
+              DateTime firstOccurrence =
+                  costStart.add(Duration(days: daysUntilTarget));
+              if (!firstOccurrence.isAfter(costEnd)) {
+                int totalDays = costEnd.difference(firstOccurrence).inDays;
+                int intervalDays = 7 * (cost.interval ?? 1);
+                occurrences = (totalDays ~/ intervalDays) + 1;
+              }
+            } else {
+              final days = costEnd.difference(costStart).inDays;
+              occurrences = (days ~/ (7 * (cost.interval ?? 1))) + 1;
+            }
+            break;
+          case CostFrequency.everyXMonths:
+            final months = (costEnd.year - costStart.year) * 12 +
+                (costEnd.month - costStart.month);
+            occurrences = (months ~/ (cost.interval ?? 1)) + 1;
+            break;
+          default:
+            occurrences = 1;
+        }
+
+        if (occurrences > 0) {
+          yearRunningCosts += cost.amount * occurrences;
+        }
+      }
+    } else {
+      // For selected year: calculate actual occurrences based on frequency
+      for (final cost in prov.runningCosts) {
+        final costStart = cost.startDate;
+        final costEnd = cost.endDate;
+
+        // Check if this cost is active during the selected year
+        final yearStart = DateTime(_selectedYear, 1, 1);
+        final yearEnd = DateTime(_selectedYear, 12, 31);
+
+        // Skip if cost doesn't overlap with selected year
+        if (costEnd != null && costEnd.isBefore(yearStart)) continue;
+        if (costStart.isAfter(yearEnd)) continue;
+
+        // Calculate actual occurrences in the year
+        // For ongoing costs, cap at current date for "to date" accuracy
+        final actualEnd = costEnd ?? now;
+        final effectiveStart =
+            costStart.isAfter(yearStart) ? costStart : yearStart;
+        final effectiveEnd = actualEnd.isBefore(yearEnd) ? actualEnd : yearEnd;
+
+        // Skip if effective period is invalid
+        if (effectiveEnd.isBefore(effectiveStart)) continue;
+
+        int occurrences = 0;
+        switch (cost.frequency) {
+          case CostFrequency.monthly:
+            // Count months between effective start and end
+            occurrences = (effectiveEnd.year - effectiveStart.year) * 12 +
+                (effectiveEnd.month - effectiveStart.month) +
+                1;
+            break;
+          case CostFrequency.weekly:
+            // Count specific day of week occurrences
+            if (cost.dayOfWeek != null) {
+              // Find first occurrence of the day on or after effectiveStart
+              int startDayOfWeek = effectiveStart.weekday; // 1=Monday, 7=Sunday
+              int targetDay = cost.dayOfWeek!;
+              int daysUntilTarget = (targetDay - startDayOfWeek + 7) % 7;
+              DateTime firstOccurrence =
+                  effectiveStart.add(Duration(days: daysUntilTarget));
+
+              if (!firstOccurrence.isAfter(effectiveEnd)) {
+                int totalDays = effectiveEnd.difference(firstOccurrence).inDays;
+                occurrences = (totalDays ~/ 7) + 1;
+              }
+            } else {
+              // Fallback: count every 7 days from start
+              final days = effectiveEnd.difference(effectiveStart).inDays;
+              occurrences = (days ~/ 7) + 1;
+            }
+            break;
+          case CostFrequency.yearly:
+            occurrences = 1;
+            break;
+          case CostFrequency.everyXWeeks:
+            // Count specific day of week occurrences with interval
+            if (cost.dayOfWeek != null) {
+              int startDayOfWeek = effectiveStart.weekday;
+              int targetDay = cost.dayOfWeek!;
+              int daysUntilTarget = (targetDay - startDayOfWeek + 7) % 7;
+              DateTime firstOccurrence =
+                  effectiveStart.add(Duration(days: daysUntilTarget));
+
+              if (!firstOccurrence.isAfter(effectiveEnd)) {
+                int totalDays = effectiveEnd.difference(firstOccurrence).inDays;
+                int intervalDays = 7 * (cost.interval ?? 1);
+                occurrences = (totalDays ~/ intervalDays) + 1;
+              }
+            } else {
+              final days = effectiveEnd.difference(effectiveStart).inDays;
+              occurrences = (days ~/ (7 * (cost.interval ?? 1))) + 1;
+            }
+            break;
+          case CostFrequency.everyXMonths:
+            final months = (effectiveEnd.year - effectiveStart.year) * 12 +
+                (effectiveEnd.month - effectiveStart.month);
+            occurrences = (months ~/ (cost.interval ?? 1)) + 1;
+            break;
+          default:
+            occurrences = 1;
+        }
+
+        if (occurrences > 0) {
+          yearRunningCosts += cost.amount * occurrences;
+        }
+      }
+    }
+
+    // Calculate rental income for the selected year
+    double yearRentalIncome = 0;
+
+    // First, try to get from monthly expenses (actual recorded payments)
+    yearRentalIncome = yearData.fold<double>(
+      0,
+      (sum, m) => sum + (m['paymentReceived'] as double? ?? 0),
+    );
+
+    // If no monthly expense data, calculate from rent periods
+    if (yearRentalIncome == 0 && prov.rentPeriods.isNotEmpty) {
+      if (_selectedYear == 0) {
+        // All time: sum actual months for each rent period
+        for (final period in prov.rentPeriods) {
+          // For ongoing rents, count months from start to current month
+          // For ended rents, count actual duration
+          final end = period.endDate ?? DateTime(now.year, now.month);
+          final start = period.startDate;
+
+          // Calculate months between start and end
+          int months =
+              (end.year - start.year) * 12 + (end.month - start.month) + 1;
+          if (months < 0) months = 0;
+
+          yearRentalIncome += period.rentalAmount * months;
+        }
+      } else {
+        // For selected year: calculate how many months rent was active in that year
+        for (final period in prov.rentPeriods) {
+          final periodStart = period.startDate;
+          // For ongoing rents, only count up to current month of selected year
+          final periodEnd = period.endDate ??
+              (now.year == _selectedYear
+                  ? DateTime(now.year, now.month)
+                  : DateTime(_selectedYear, 12, 31));
+
+          // Calculate overlap with selected year
+          final yearStart = DateTime(_selectedYear, 1, 1);
+          final yearEnd = DateTime(_selectedYear, 12, 31);
+
+          // Find the overlap period
+          final overlapStart =
+              periodStart.isAfter(yearStart) ? periodStart : yearStart;
+          final overlapEnd = periodEnd.isBefore(yearEnd) ? periodEnd : yearEnd;
+
+          if (overlapStart.isBefore(overlapEnd) ||
+              overlapStart.year == overlapEnd.year &&
+                  overlapStart.month == overlapEnd.month) {
+            // Calculate months in overlap
+            int months = (overlapEnd.year - overlapStart.year) * 12 +
+                (overlapEnd.month - overlapStart.month) +
+                1;
+            if (months < 0) months = 0;
+
+            yearRentalIncome += period.rentalAmount * months;
+          }
+        }
+      }
+    }
 
     double totalWater = 0,
         totalElec = 0,
         totalInterest = 0,
         totalRates = 0,
-        totalRunning = yearRunningCosts,
-        totalIncome = 0;
+        totalRunning = 0,
+        totalIncome = yearRentalIncome;
     for (final m in yearData) {
       totalWater += m['water'] as double;
       totalElec += m['electricity'] as double;
       totalInterest += m['interest'] as double;
       totalRates += m['rates'] as double;
-      totalRunning += m['running'] as double;
-      totalIncome += m['paymentReceived'] as double? ?? 0;
     }
+
+    totalRunning = yearRunningCosts;
 
     final totalExpenses =
         totalWater + totalElec + totalInterest + totalRates + totalRunning;
@@ -927,25 +1143,60 @@ class _OverviewScreenState extends State<OverviewScreen> {
                   : const Color(0xFF6B8E6B).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  deficit > 0 ? 'Total Deficit' : 'Total Surplus',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: deficit > 0 ? Colors.red : const Color(0xFF6B8E6B),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      deficit > 0 ? 'Total Deficit' : 'Total Surplus',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color:
+                            deficit > 0 ? Colors.red : const Color(0xFF6B8E6B),
+                      ),
+                    ),
+                    Text(
+                      formatZAR(deficit.abs()),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color:
+                            deficit > 0 ? Colors.red : const Color(0xFF6B8E6B),
+                      ),
+                    ),
+                  ],
                 ),
-                Text(
-                  formatZAR(deficit.abs()),
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: deficit > 0 ? Colors.red : const Color(0xFF6B8E6B),
+                if (_selectedYear != 0) ...[
+                  const SizedBox(height: 8),
+                  Divider(
+                      color: Theme.of(context)
+                          .dividerColor
+                          .withValues(alpha: 0.3)),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Monthly avg:',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).textTheme.bodySmall?.color,
+                        ),
+                      ),
+                      Text(
+                        formatZAR(totalExpenses / 12),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
+                ],
               ],
             ),
           ),

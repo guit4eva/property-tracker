@@ -171,7 +171,9 @@ class _RentalManagerScreenState extends State<RentalManagerScreen> {
       itemCount: periods.length,
       itemBuilder: (ctx, i) {
         final period = periods[i];
-        final isCurrent = period.endDate == null;
+        final now = DateTime.now();
+        final isCurrent =
+            period.endDate == null || period.endDate!.isAfter(now);
 
         return Card(
           margin: const EdgeInsets.only(bottom: 16),
@@ -311,7 +313,7 @@ class _RentalManagerScreenState extends State<RentalManagerScreen> {
                       children: [
                         _buildStatItem(
                           'Start',
-                          DateFormat('dd MMM yyyy').format(period.startDate),
+                          DateFormat('MMM yyyy').format(period.startDate),
                           Icons.calendar_today,
                         ),
                         Container(
@@ -323,8 +325,7 @@ class _RentalManagerScreenState extends State<RentalManagerScreen> {
                           period.endDate == null ? 'End' : 'Ended',
                           period.endDate == null
                               ? 'Ongoing'
-                              : DateFormat('dd MMM yyyy')
-                                  .format(period.endDate!),
+                              : DateFormat('MMM yyyy').format(period.endDate!),
                           period.endDate == null
                               ? Icons.more_horiz
                               : Icons.event_busy,
@@ -367,9 +368,8 @@ class _RentalManagerScreenState extends State<RentalManagerScreen> {
   }
 
   String _formatDateRange(DateTime start, DateTime? end) {
-    final startStr = DateFormat('MMM d, yyyy').format(start);
-    final endStr =
-        end == null ? 'Present' : DateFormat('MMM d, yyyy').format(end);
+    final startStr = DateFormat('MMM yyyy').format(start);
+    final endStr = end == null ? 'Present' : DateFormat('MMM yyyy').format(end);
     return '$startStr - $endStr';
   }
 
@@ -389,7 +389,7 @@ class _RentalManagerScreenState extends State<RentalManagerScreen> {
       builder: (ctx) => AlertDialog(
         title: const Text('Delete Rent Period'),
         content: Text(
-          'Are you sure you want to delete the rent period starting ${DateFormat('MMM d, yyyy').format(period.startDate)}?',
+          'Are you sure you want to delete the rent period starting ${DateFormat('MMM yyyy').format(period.startDate)}?',
         ),
         actions: [
           TextButton(
@@ -459,11 +459,9 @@ class _RentPeriodFormDialogState extends State<_RentPeriodFormDialog> {
   }
 
   Future<void> _pickStartDate() async {
-    final picked = await showDatePicker(
+    final picked = await showDialog<DateTime>(
       context: context,
-      initialDate: _startDate,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
+      builder: (ctx) => _MonthYearPickerDialog(initial: _startDate),
     );
     if (picked != null) setState(() => _startDate = picked);
   }
@@ -471,13 +469,16 @@ class _RentPeriodFormDialogState extends State<_RentPeriodFormDialog> {
   Future<void> _pickEndDate() async {
     if (_isIndefinite) return;
 
-    final picked = await showDatePicker(
+    final picked = await showDialog<DateTime>(
       context: context,
-      initialDate: _endDate ?? _startDate.add(const Duration(days: 365)),
-      firstDate: _startDate.add(const Duration(days: 1)),
-      lastDate: DateTime(2100),
+      builder: (ctx) => _MonthYearPickerDialog(
+        initial: _endDate ?? _startDate.add(const Duration(days: 365)),
+      ),
     );
-    if (picked != null) setState(() => _endDate = picked);
+    if (picked != null) {
+      if (picked.isBefore(_startDate)) return;
+      setState(() => _endDate = picked);
+    }
   }
 
   Future<void> _save() async {
@@ -582,7 +583,7 @@ class _RentPeriodFormDialogState extends State<_RentPeriodFormDialog> {
                   ),
                 ),
                 title: const Text('Start Date'),
-                subtitle: Text(DateFormat('dd MMM yyyy').format(_startDate)),
+                subtitle: Text(DateFormat('MMM yyyy').format(_startDate)),
                 onTap: _pickStartDate,
               ),
               const Divider(height: 1),
@@ -626,7 +627,7 @@ class _RentPeriodFormDialogState extends State<_RentPeriodFormDialog> {
                   ),
                   title: const Text('End Date'),
                   subtitle: _endDate != null
-                      ? Text(DateFormat('dd MMM yyyy').format(_endDate!))
+                      ? Text(DateFormat('MMM yyyy').format(_endDate!))
                       : const Text('Select end date'),
                   onTap: _pickEndDate,
                 ),
@@ -649,6 +650,112 @@ class _RentPeriodFormDialogState extends State<_RentPeriodFormDialog> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const Text('Save'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Dialog for picking month and year only (no day).
+class _MonthYearPickerDialog extends StatefulWidget {
+  final DateTime initial;
+  const _MonthYearPickerDialog({required this.initial});
+
+  @override
+  State<_MonthYearPickerDialog> createState() => _MonthYearPickerDialogState();
+}
+
+class _MonthYearPickerDialogState extends State<_MonthYearPickerDialog> {
+  late int _year;
+  late int _month;
+
+  @override
+  void initState() {
+    super.initState();
+    _year = widget.initial.year;
+    _month = widget.initial.month;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final monthNames = List.generate(
+        12, (i) => DateFormat('MMM').format(DateTime(2000, i + 1)));
+    return AlertDialog(
+      title: const Text('Select Month'),
+      content: SizedBox(
+        width: 280,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  onPressed: () => setState(() => _year--),
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                Text(
+                  '$_year',
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.w700),
+                ),
+                IconButton(
+                  onPressed: () => setState(() => _year++),
+                  icon: const Icon(Icons.chevron_right),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: List.generate(12, (i) {
+                final m = i + 1;
+                final selected = m == _month;
+                return GestureDetector(
+                  onTap: () => setState(() => _month = m),
+                  child: Container(
+                    width: 60,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.surface,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: selected
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).dividerColor,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        monthNames[i],
+                        style: TextStyle(
+                          color: selected
+                              ? Colors.white
+                              : Theme.of(context).textTheme.bodyLarge?.color,
+                          fontWeight:
+                              selected ? FontWeight.w700 : FontWeight.w400,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, DateTime(_year, _month)),
+          child: const Text('Select'),
         ),
       ],
     );
