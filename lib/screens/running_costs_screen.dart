@@ -278,9 +278,11 @@ class _RunningCostsScreenState extends State<RunningCostsScreen> {
         ? 'yearly'
         : existing?.frequency == CostFrequency.weekly
             ? 'weekly'
-            : existing?.frequency == CostFrequency.daily
-                ? 'daily'
-                : 'monthly';
+            : existing?.frequency == CostFrequency.everyXWeeks
+                ? 'every_x_weeks'
+                : existing?.frequency == CostFrequency.everyXMonths
+                    ? 'every_x_months'
+                    : 'monthly';
     int timesPerPeriod = existing?.interval ?? 1;
     int everyXPeriods = existing?.interval ?? 1;
     int? dayOfWeek = existing?.dayOfWeek;

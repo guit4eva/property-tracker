@@ -644,8 +644,8 @@ class _OverviewScreenState extends State<OverviewScreen> {
     }
 
     final maxY = spots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
-    final minY = spots.map((s) => s.y).reduce((a, b) => a < b ? a : b);
-    final padding = (maxY - minY) * 0.15;
+    final minY = 0.0; // Always start from 0
+    final padding = maxY * 0.15;
 
     // Calculate intervals based on data density
     final bottomInterval = isDense
@@ -673,31 +673,6 @@ class _OverviewScreenState extends State<OverviewScreen> {
               const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           topTitles:
               const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 48,
-              interval: leftInterval,
-              getTitlesWidget: (value, meta) {
-                if (value < 0) return const Text('');
-                String label;
-                if (value >= 1000000) {
-                  label = '${(value / 1000000).toStringAsFixed(0)}M';
-                } else if (value >= 1000) {
-                  label = '${(value / 1000).toStringAsFixed(0)}k';
-                } else {
-                  label = value.toStringAsFixed(0);
-                }
-                return Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: Text(
-                    label,
-                    style: const TextStyle(fontSize: 9),
-                  ),
-                );
-              },
-            ),
-          ),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -740,7 +715,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
         borderData: FlBorderData(show: false),
         minX: 0,
         maxX: (spots.length - 1).toDouble(),
-        minY: minY - padding,
+        minY: 0, // Force Y-axis to start at 0
         maxY: maxY + padding,
         lineBarsData: [
           LineChartBarData(

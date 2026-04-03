@@ -375,26 +375,83 @@ class PropertyProvider extends ChangeNotifier {
         'total': e.totalExpenses,
       };
     }
-    // merge running costs using monthlyEquivalent
+    // merge running costs - calculate actual occurrences per month
     for (final c in costs) {
-      final key = '${c.year}-${c.month.toString().padLeft(2, '0')}';
-      if (months.containsKey(key)) {
-        months[key]!['running'] =
-            (months[key]!['running'] as double) + c.monthlyEquivalent;
-        months[key]!['total'] =
-            (months[key]!['total'] as double) + c.monthlyEquivalent;
-      } else {
-        months[key] = {
-          'year': c.year,
-          'month': c.month,
-          'water': 0.0,
-          'electricity': 0.0,
-          'interest': 0.0,
-          'rates': 0.0,
-          'running': c.monthlyEquivalent,
-          'received': 0.0,
-          'total': c.monthlyEquivalent,
-        };
+      // Calculate which months this cost is active
+      final costStart = c.startDate;
+      final costEnd = c.endDate;
+
+      // Determine the range of months to check
+      final startYear = costStart.year;
+      final startMonth = costStart.month;
+      final endYear = costEnd?.year ?? DateTime.now().year;
+      final endMonth = costEnd?.month ?? DateTime.now().month;
+
+      // For each month in the range, check if this cost occurs
+      for (int year = startYear; year <= endYear; year++) {
+        for (int month = 1; month <= 12; month++) {
+          // Skip if before start or after end
+          if (year < startYear || (year == startYear && month < startMonth))
+            continue;
+          if (costEnd != null &&
+              (year > endYear || (year == endYear && month > endMonth)))
+            continue;
+
+          final key = '$year-${month.toString().padLeft(2, '0')}';
+
+          // Check if this cost occurs in this specific month
+          bool occursInMonth = false;
+          switch (c.frequency) {
+            case CostFrequency.monthly:
+              occursInMonth = true;
+              break;
+            case CostFrequency.weekly:
+              // Count how many times this day of week occurs in the month
+              if (c.dayOfWeek != null) {
+                // For chart display, use the amount (not multiplied by occurrences)
+                // since each occurrence is a separate event
+                occursInMonth =
+                    true; // Show the cost for months where it's active
+              } else {
+                occursInMonth = true;
+              }
+              break;
+            case CostFrequency.yearly:
+              occursInMonth = (month == costStart.month);
+              break;
+            case CostFrequency.everyXWeeks:
+              occursInMonth = true; // Show for active months
+              break;
+            case CostFrequency.everyXMonths:
+              final monthsFromStart =
+                  (year - costStart.year) * 12 + (month - costStart.month);
+              occursInMonth = (monthsFromStart % (c.interval ?? 1)) == 0;
+              break;
+            default:
+              occursInMonth = true;
+          }
+
+          if (occursInMonth) {
+            if (months.containsKey(key)) {
+              months[key]!['running'] =
+                  (months[key]!['running'] as double) + c.amount;
+              months[key]!['total'] =
+                  (months[key]!['total'] as double) + c.amount;
+            } else {
+              months[key] = {
+                'year': year,
+                'month': month,
+                'water': 0.0,
+                'electricity': 0.0,
+                'interest': 0.0,
+                'rates': 0.0,
+                'running': c.amount,
+                'received': 0.0,
+                'total': c.amount,
+              };
+            }
+          }
+        }
       }
     }
     final sorted = months.entries.toList()
