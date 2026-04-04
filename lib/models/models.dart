@@ -582,7 +582,6 @@ class SiteEvaluation {
   final DateTime evaluationDate;
   final double value;
   final String? notes;
-  final String? evaluatedBy;
 
   const SiteEvaluation({
     this.id,
@@ -590,7 +589,6 @@ class SiteEvaluation {
     required this.evaluationDate,
     required this.value,
     this.notes,
-    this.evaluatedBy,
   });
 
   factory SiteEvaluation.fromJson(Map<String, dynamic> json) => SiteEvaluation(
@@ -599,7 +597,6 @@ class SiteEvaluation {
         evaluationDate: DateTime.parse(json['evaluation_date'] as String),
         value: (json['value'] as num).toDouble(),
         notes: json['notes'] as String?,
-        evaluatedBy: json['evaluated_by'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -607,7 +604,6 @@ class SiteEvaluation {
         'evaluation_date': evaluationDate.toIso8601String().substring(0, 10),
         'value': value,
         'notes': notes,
-        'evaluated_by': evaluatedBy,
       };
 }
 

@@ -264,7 +264,6 @@ class EvaluationsScreen extends StatelessWidget {
     final valueController = TextEditingController();
     final notesController = TextEditingController();
     DateTime evalDate = DateTime.now();
-    final evaluatedByController = TextEditingController();
 
     showDialog(
       context: context,
@@ -308,15 +307,6 @@ class EvaluationsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               TextField(
-                controller: evaluatedByController,
-                decoration: const InputDecoration(
-                  labelText: 'Evaluated By (optional)',
-                  hintText: 'Name of agent or evaluator',
-                  prefixIcon: Icon(Icons.person_outline),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextField(
                 controller: notesController,
                 decoration: const InputDecoration(
                   labelText: 'Notes (optional)',
@@ -348,9 +338,6 @@ class EvaluationsScreen extends StatelessWidget {
                 value: value,
                 notes:
                     notesController.text.isEmpty ? null : notesController.text,
-                evaluatedBy: evaluatedByController.text.isEmpty
-                    ? null
-                    : evaluatedByController.text,
               );
 
               await context.read<PropertyProvider>().addEvaluation(evaluation);
