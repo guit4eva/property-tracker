@@ -214,7 +214,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
           ),
           const SizedBox(height: 20),
           _summaryRow('💧 Water', water, const Color(0xFF42A5F5)),
-          _summaryRow('⚡ Electricity', elec, const Color(0xFFF5C842)),
+          _summaryRow('⚡ Electricity', elec, const Color(0xFFD4A017)),
           _summaryRow('📈 Interest', interest, const Color(0xFFEF5350)),
           _summaryRow('🏛 Rates & Taxes', rates, const Color(0xFFAB47BC)),
           _summaryRow('🔧 Running Costs', running, const Color(0xFF6B8E6B)),
@@ -354,8 +354,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
     for (final c
         in prov.runningCosts.where((cost) => cost.year == _selectedYear)) {
       final month = c.month;
-      runningCostsByMonth[month] =
-          (runningCostsByMonth[month] ?? 0) + c.monthlyEquivalent;
+      runningCostsByMonth[month] = (runningCostsByMonth[month] ?? 0) + c.amount;
     }
 
     if (yearData.isEmpty && runningCostsByMonth.isEmpty)
@@ -457,7 +456,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                   DataCell(Text(
                     hasData ? _compact(data['electricity'] as double) : '—',
                     style: style.copyWith(
-                        color: hasData ? const Color(0xFFF5C842) : null),
+                        color: hasData ? const Color(0xFFD4A017) : null),
                   )),
                   DataCell(Text(
                     hasData ? _compact(data['interest'] as double) : '—',
@@ -674,7 +673,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
                   )),
                   DataCell(Text(
                     formatZAR(y['electricity']!),
-                    style: const TextStyle(color: Color(0xFFF5C842)),
+                    style: const TextStyle(color: Color(0xFFD4A017)),
                   )),
                   DataCell(Text(
                     formatZAR(y['running']!),

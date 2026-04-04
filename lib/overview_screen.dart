@@ -34,7 +34,7 @@ extension ChartViewExt on ChartView {
       case ChartView.water:
         return const Color(0xFF42A5F5);
       case ChartView.electricity:
-        return const Color(0xFFF5C842);
+        return const Color(0xFFD4A017); // Darker gold for better visibility
       case ChartView.interest:
         return const Color(0xFFEF5350);
       case ChartView.rates:
@@ -78,6 +78,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
   String _selectedTab = 'summary'; // 'charts' or 'summary'
   late PageController _yearPageController;
   late PageController _summaryPageController;
+  bool _hasSyncedSummaryPage = false;
 
   int get _selectedYear => _selectedDate.year;
 
@@ -182,6 +183,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
                         onTap: () {
                           setState(() {
                             _selectedTab = 'summary';
+                            _hasSyncedSummaryPage = false;
                           });
                         },
                         borderRadius: BorderRadius.circular(12),
@@ -366,6 +368,17 @@ class _OverviewScreenState extends State<OverviewScreen> {
 
     // Add "All Time" as year 0 at the beginning
     final displayYears = [0, ...allYears];
+    final targetPage = displayYears.indexOf(_selectedYear);
+
+    // Navigate to correct page on first build only
+    if (!_hasSyncedSummaryPage && targetPage >= 0) {
+      _hasSyncedSummaryPage = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_summaryPageController.hasClients) {
+          _summaryPageController.jumpToPage(targetPage);
+        }
+      });
+    }
 
     return PageView.builder(
       controller: _summaryPageController,
@@ -1102,7 +1115,7 @@ class _OverviewScreenState extends State<OverviewScreen> {
             runSpacing: 8,
             children: [
               _miniStat('💧 Water', totalWater, const Color(0xFF42A5F5)),
-              _miniStat('⚡ Electricity', totalElec, const Color(0xFFF5C842)),
+              _miniStat('⚡ Electricity', totalElec, const Color(0xFFD4A017)),
               _miniStat('📈 Interest', totalInterest, const Color(0xFFEF5350)),
               _miniStat('🏛 Rates', totalRates, const Color(0xFFAB47BC)),
               _miniStat('🔧 Running', totalRunning, const Color(0xFF4CAF7D)),

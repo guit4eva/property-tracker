@@ -338,10 +338,22 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
               );
               if (confirmed == true && mounted) {
                 final prov = context.read<PropertyProvider>();
-                // Delete annual rates from all 12 months
-                for (int m = 1; m <= 12; m++) {
-                  final expense = prov.getExpenseForMonth(widget.year, m);
-                  if (expense != null) {
+
+                // Get the start date from the current expense
+                final startDate = _existingExpense!.ratesStartDate ??
+                    DateTime(widget.year, 1, 1);
+
+                // Delete annual rates from the correct 12-month period
+                for (int i = 0; i < 12; i++) {
+                  final currentDate =
+                      DateTime(startDate.year, startDate.month + i, 1);
+                  final targetYear = currentDate.year;
+                  final targetMonth = currentDate.month;
+
+                  final expense =
+                      prov.getExpenseForMonth(targetYear, targetMonth);
+                  if (expense != null &&
+                      expense.ratesFrequency == RatesFrequency.annually) {
                     await prov.upsertExpense(expense.copyWith(
                       ratesTaxes: 0,
                       ratesFrequency: RatesFrequency.monthly,
@@ -349,19 +361,23 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
                     ));
                   }
                 }
-                if (!context.mounted) return;
+                if (!mounted) return;
+                if (!ctx.mounted) return;
                 Navigator.pop(ctx); // Close delete dialog
+                if (!mounted) return;
                 Navigator.pop(ctx); // Close edit dialog
 
                 // Reload data from provider to ensure UI updates
-                prov.loadProperties();
+                if (mounted) {
+                  prov.loadProperties();
 
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Annual rates deleted'),
-                    backgroundColor: Color(0xFF6B8E6B),
-                  ),
-                );
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Annual rates deleted'),
+                      backgroundColor: Color(0xFF6B8E6B),
+                    ),
+                  );
+                }
               }
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -447,19 +463,65 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
     ).then((confirmed) async {
       if (confirmed == true) {
         final prov = context.read<PropertyProvider>();
-        // Delete expenses for all 12 months
-        for (int m = 1; m <= 12; m++) {
-          final expense = prov.getExpenseForMonth(widget.year, m);
-          if (expense != null &&
-              expense.ratesFrequency == RatesFrequency.annually) {
-            final updatedExpense = expense.copyWith(
-              ratesTaxes: 0,
+
+        // Find the annual rates start date from the current month's expense
+        final currentExpense =
+            prov.getExpenseForMonth(widget.year, widget.month);
+        if (currentExpense == null ||
+            currentExpense.ratesFrequency != RatesFrequency.annually) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No annual rates found to delete'),
+                backgroundColor: Colors.redAccent,
+              ),
+            );
+          }
+          return;
+        }
+
+        final startDate = currentExpense.ratesStartDate ??
+            DateTime(widget.year, widget.month, 1);
+
+        // Reset the 12-month period that has annual rates
+        for (int i = 0; i < 12; i++) {
+          final currentDate = DateTime(startDate.year, startDate.month + i, 1);
+          final targetYear = currentDate.year;
+          final targetMonth = currentDate.month;
+
+          // Get fresh expense reference each iteration
+          final expense = prov.getExpenseForMonth(targetYear, targetMonth);
+          if (expense != null) {
+            // Always reset rates fields, regardless of current frequency
+            final updatedExpense = MonthlyExpense(
+              id: expense.id,
+              propertyId: expense.propertyId,
+              year: expense.year,
+              month: expense.month,
+              water: expense.water,
+              electricity: expense.electricity,
+              interest: expense.interest,
+              ratesTaxes: 0, // Reset rates
+              annualLevy: expense.annualLevy,
+              paymentReceived: expense.paymentReceived,
+              paymentToMunicipality: expense.paymentToMunicipality,
+              notes: expense.notes,
+              isLocked: expense.isLocked,
               ratesFrequency: RatesFrequency.monthly,
+              ratesStartDate: null,
+              createdAt: expense.createdAt,
             );
             await prov.upsertExpense(updatedExpense);
           }
         }
         if (mounted) {
+          // Refresh the current expense reference
+          final refreshedExpense =
+              prov.getExpenseForMonth(widget.year, widget.month);
+          setState(() {
+            _existingExpense = refreshedExpense;
+            _isEditing = false;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Annual rates deleted'),
@@ -492,29 +554,37 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
       );
       final saved = await prov.upsertExpense(expense);
 
-      // If annual rates, overwrite ALL months in the year with the divided amount
-      // Note: We save the FULL annual amount to all months with annually frequency
-      // The effectiveMonthlyRates getter will divide by 12 for display/calculation
+      // If annual rates, save to the correct 12-month period starting from ratesStartDate
       if (_ratesFrequency == RatesFrequency.annually && _ratesTaxes > 0) {
-        for (int m = 1; m <= 12; m++) {
-          // Get existing data for this month
-          final existingMonth = prov.getExpenseForMonth(widget.year, m);
+        final startDate =
+            _ratesStartDate ?? DateTime(widget.year, widget.month, 1);
 
-          // Create/update expense for this month with the SAME annual amount
+        // Save to 12 consecutive months starting from startDate
+        for (int i = 0; i < 12; i++) {
+          final currentDate = DateTime(startDate.year, startDate.month + i, 1);
+          final targetYear = currentDate.year;
+          final targetMonth = currentDate.month;
+
+          // Get existing data for this month
+          final existingMonth =
+              prov.getExpenseForMonth(targetYear, targetMonth);
+
+          // Create/update expense for this month with the annual amount
           final monthExpense = MonthlyExpense(
             propertyId: widget.propertyId,
-            year: widget.year,
-            month: m,
+            year: targetYear,
+            month: targetMonth,
             water: existingMonth?.water ?? 0,
             electricity: existingMonth?.electricity ?? 0,
             interest: existingMonth?.interest ?? 0,
-            ratesTaxes: _ratesTaxes, // Save full annual amount to ALL months
+            ratesTaxes: _ratesTaxes, // Save full annual amount
             paymentReceived: existingMonth?.paymentReceived ??
-                prov.getRentForMonth(widget.year, m) ??
+                prov.getRentForMonth(targetYear, targetMonth) ??
                 0,
             paymentToMunicipality: existingMonth?.paymentToMunicipality ?? 0,
+            notes: existingMonth?.notes,
             ratesFrequency: RatesFrequency.annually,
-            ratesStartDate: _ratesStartDate,
+            ratesStartDate: startDate,
           );
           await prov.upsertExpense(monthExpense);
         }
@@ -1517,73 +1587,66 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
                           .withValues(alpha: 0.3),
                     ),
                   ),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.info_outlined,
-                          size: 20,
-                          color: Theme.of(context).colorScheme.primary),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Annual Rates: ${_formatDateRange(_existingExpense!.ratesStartDate, widget.year)}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
-                                  ),
-                                ),
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.edit, size: 18),
-                                      onPressed: () => _editAnnualRates(),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      iconSize: 18,
-                                      tooltip: 'Edit annual rates',
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete_outline,
-                                          size: 18),
-                                      onPressed: () => _deleteAnnualRates(),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      iconSize: 18,
-                                      tooltip: 'Delete annual rates',
-                                      color: Colors.red,
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Annual: ${formatZAR(_existingExpense!.ratesTaxes)}',
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontStyle: FontStyle.italic,
-                              ),
-                            ),
-                            Text(
-                              _existingExpense!.ratesStartDate != null
-                                  ? 'Period: ${_formatDateRange(_existingExpense!.ratesStartDate!, widget.year)}'
-                                  : 'Period: 1 Jan ${widget.year} to 31 Dec ${widget.year} (default)',
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Annual Rates: ${_formatDateRange(_existingExpense!.ratesStartDate, widget.year)}',
                               style: TextStyle(
-                                fontSize: 12,
-                                color: Theme.of(context)
-                                    .textTheme
-                                    .bodyMedium
-                                    ?.color,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Theme.of(context).colorScheme.primary,
                               ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ],
+                          ),
+                          const SizedBox(width: 8),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit, size: 18),
+                                onPressed: () => _editAnnualRates(),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                iconSize: 18,
+                                tooltip: 'Edit annual rates',
+                              ),
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon:
+                                    const Icon(Icons.delete_outline, size: 18),
+                                onPressed: () => _deleteAnnualRates(),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                iconSize: 18,
+                                tooltip: 'Delete annual rates',
+                                color: Colors.red,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Annual: ${formatZAR(_existingExpense!.ratesTaxes)}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                      Text(
+                        _existingExpense!.ratesStartDate != null
+                            ? 'Period: ${_formatDateRange(_existingExpense!.ratesStartDate!, widget.year)}'
+                            : 'Period: 1 Jan ${widget.year} to 31 Dec ${widget.year} (default)',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).textTheme.bodyMedium?.color,
                         ),
                       ),
                     ],
@@ -1726,7 +1789,7 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
                 Expanded(
                   child: Text(
                     _ratesStartDate != null
-                        ? 'This amount will be saved as annual rates and divided across all 12 months from ${_formatDateRange(_ratesStartDate, widget.year)} to ${_formatDate(DateTime(_ratesStartDate!.year + 1, _ratesStartDate!.month, 0))}'
+                        ? 'This amount will be saved as annual rates and divided across all 12 months (${_formatDateRange(_ratesStartDate, widget.year)})'
                         : 'This amount will be saved as annual rates for ${widget.year} and divided across all 12 months',
                     style: TextStyle(
                       fontSize: 12,

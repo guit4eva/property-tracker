@@ -310,8 +310,12 @@ class PropertyProvider extends ChangeNotifier {
 
   /// Total running costs for a month (all categories)
   double totalRunningCostsForMonth(int year, int month) {
-    return getRunningCostsForMonth(year, month)
-        .fold(0.0, (sum, c) => sum + c.monthlyEquivalent);
+    final costs = getRunningCostsForMonth(year, month);
+    double total = 0;
+    for (final c in costs) {
+      total += c.amount;
+    }
+    return total;
   }
 
   /// All-time totals for the selected property
@@ -322,18 +326,81 @@ class PropertyProvider extends ChangeNotifier {
         rates = 0,
         running = 0,
         received = 0,
-        muniPayments = 0; // NEW
+        muniPayments = 0;
+    final now = DateTime.now();
+
     for (final e in _expenses) {
       water += e.water;
       elec += e.electricity;
       interest += e.interest;
-      rates += e.ratesTaxes + (e.annualLevy ?? 0);
+      rates +=
+          e.effectiveMonthlyRates; // Uses monthly division for annual rates
       received += e.paymentReceived;
-      muniPayments += e.paymentToMunicipality; // NEW
+      muniPayments += e.paymentToMunicipality;
     }
+
+    // Calculate running costs with actual occurrences
     for (final c in _runningCosts) {
-      running += c.monthlyEquivalent;
+      final costStart = c.startDate;
+      final costEnd = c.endDate ?? now;
+
+      int occurrences = 0;
+      switch (c.frequency) {
+        case CostFrequency.monthly:
+          occurrences = (costEnd.year - costStart.year) * 12 +
+              (costEnd.month - costStart.month) +
+              1;
+          break;
+        case CostFrequency.weekly:
+          if (c.dayOfWeek != null) {
+            int startDayOfWeek = costStart.weekday;
+            int targetDay = c.dayOfWeek!;
+            int daysUntilTarget = (targetDay - startDayOfWeek + 7) % 7;
+            DateTime firstOccurrence =
+                costStart.add(Duration(days: daysUntilTarget));
+            if (!firstOccurrence.isAfter(costEnd)) {
+              int totalDays = costEnd.difference(firstOccurrence).inDays;
+              occurrences = (totalDays ~/ 7) + 1;
+            }
+          } else {
+            final days = costEnd.difference(costStart).inDays;
+            occurrences = (days ~/ 7) + 1;
+          }
+          break;
+        case CostFrequency.yearly:
+          occurrences = costEnd.year - costStart.year + 1;
+          break;
+        case CostFrequency.everyXWeeks:
+          if (c.dayOfWeek != null) {
+            int startDayOfWeek = costStart.weekday;
+            int targetDay = c.dayOfWeek!;
+            int daysUntilTarget = (targetDay - startDayOfWeek + 7) % 7;
+            DateTime firstOccurrence =
+                costStart.add(Duration(days: daysUntilTarget));
+            if (!firstOccurrence.isAfter(costEnd)) {
+              int totalDays = costEnd.difference(firstOccurrence).inDays;
+              int intervalDays = 7 * (c.interval ?? 1);
+              occurrences = (totalDays ~/ intervalDays) + 1;
+            }
+          } else {
+            final days = costEnd.difference(costStart).inDays;
+            occurrences = (days ~/ (7 * (c.interval ?? 1))) + 1;
+          }
+          break;
+        case CostFrequency.everyXMonths:
+          final months = (costEnd.year - costStart.year) * 12 +
+              (costEnd.month - costStart.month);
+          occurrences = (months ~/ (c.interval ?? 1)) + 1;
+          break;
+        default:
+          occurrences = 1;
+      }
+
+      if (occurrences > 0) {
+        running += c.amount * occurrences;
+      }
     }
+
     return {
       'water': water,
       'electricity': elec,
@@ -341,7 +408,7 @@ class PropertyProvider extends ChangeNotifier {
       'rates': rates,
       'running': running,
       'received': received,
-      'municipality_payments': muniPayments, // NEW
+      'municipality_payments': muniPayments,
       'total': water + elec + interest + rates + running,
     };
   }
@@ -369,7 +436,7 @@ class PropertyProvider extends ChangeNotifier {
         'water': e.water,
         'electricity': e.electricity,
         'interest': e.interest,
-        'rates': e.ratesTaxes + (e.annualLevy ?? 0),
+        'rates': e.effectiveMonthlyRates,
         'running': 0.0,
         'received': e.paymentReceived,
         'total': e.totalExpenses,

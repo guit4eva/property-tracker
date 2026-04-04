@@ -9,7 +9,9 @@ import 'evaluations_screen.dart';
 import 'overview_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  final VoidCallback? onNavigateToSummary;
+
+  const DashboardScreen({super.key, this.onNavigateToSummary});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -273,7 +275,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: StatCard(
                 label: 'Total Electricity',
                 amount: totals['electricity']!,
-                color: const Color(0xFFF5C842),
+                color: const Color(0xFFD4A017),
                 icon: Icons.bolt_outlined,
               ),
             ),
@@ -320,12 +322,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _navigateToOverview(ChartView view) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => OverviewScreen(initialView: view),
-      ),
-    );
+    // Use the callback to switch to the Summary tab while keeping bottom nav visible
+    widget.onNavigateToSummary?.call();
   }
 
   Widget _buildExpenseChart(Map<String, double> totals) {
@@ -340,7 +338,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       PieChartSectionData(
         value: totals['electricity']!,
         title: '',
-        color: const Color(0xFFF5C842),
+        color: const Color(0xFFD4A017),
         radius: _selectedPieSection == 1 ? 90 : 80,
         showTitle: false,
       ),
@@ -370,7 +368,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final labels = ['Water', 'Electricity', 'Interest', 'Rates', 'Running'];
     final colors = [
       const Color(0xFF42A5F5),
-      const Color(0xFFF5C842),
+      const Color(0xFFD4A017),
       const Color(0xFFEF5350),
       const Color(0xFFAB47BC),
       const Color(0xFF6B8E6B),
@@ -514,7 +512,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     children: [
                       _buildLegend(
                           'Water', const Color(0xFF42A5F5), totals['water']!),
-                      _buildLegend('Electricity', const Color(0xFFF5C842),
+                      _buildLegend('Electricity', const Color(0xFFD4A017),
                           totals['electricity']!),
                       _buildLegend('Interest', const Color(0xFFEF5350),
                           totals['interest']!),
@@ -618,7 +616,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             )
           else ...[
             _row('Water', expense.water, const Color(0xFF42A5F5)),
-            _row('Electricity', expense.electricity, const Color(0xFFF5C842)),
+            _row('Electricity', expense.electricity, const Color(0xFFD4A017)),
             _row('Interest', expense.interest, const Color(0xFFEF5350)),
             _row('Rates & Taxes', expense.effectiveMonthlyRates,
                 const Color(0xFFAB47BC)),

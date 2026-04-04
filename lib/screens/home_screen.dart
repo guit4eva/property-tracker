@@ -6,8 +6,10 @@ import '../../providers/property_provider.dart';
 import '../dashboard_screen.dart';
 import '../overview_screen.dart';
 import '../screens/properties_screen.dart';
+import '../screens/running_costs_screen.dart';
+import '../screens/municipality_payments_screen.dart';
+import '../screens/rental_income_screen.dart';
 import 'entry_screen.dart';
-import 'running_costs_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -26,6 +28,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _switchToTab(int tabIndex) {
     setState(() => _tab = tabIndex);
+  }
+
+  void _navigateToSummary() {
+    _switchToTab(2);
   }
 
   @override
@@ -55,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final screens = [
-      const DashboardScreen(),
+      DashboardScreen(onNavigateToSummary: _navigateToSummary),
       const EntryScreen(),
       const OverviewScreen(),
       const MenuPage(),
@@ -250,11 +256,196 @@ class MenuPage extends StatelessWidget {
                   );
                 },
               ),
+              const SizedBox(height: 24),
+
+              // Divider
+              Divider(color: Theme.of(context).dividerColor),
+              const SizedBox(height: 16),
+
+              // Financial Summary Section
+              _buildFinancialSummary(context, prov),
+              const SizedBox(height: 32), // Extra padding at bottom
             ],
           );
         },
       ),
     );
+  }
+
+  Widget _buildFinancialSummary(BuildContext context, PropertyProvider prov) {
+    // Show section even if no property selected, with a message
+    final hasProperty = prov.selectedProperty != null;
+
+    // Calculate totals only if property is selected
+    double totalMunicipalityPayments = 0;
+    double totalRentalIncome = 0;
+
+    if (hasProperty) {
+      for (final expense in prov.expenses) {
+        totalMunicipalityPayments += expense.paymentToMunicipality;
+        totalRentalIncome += expense.paymentReceived;
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.bar_chart,
+                color: Theme.of(context).colorScheme.primary,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Financial Summary',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (!hasProperty)
+            Row(
+              children: [
+                Icon(
+                  Icons.info_outline,
+                  color: Theme.of(context).textTheme.bodySmall?.color,
+                  size: 18,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Select a property to view details',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).textTheme.bodySmall?.color,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else ...[
+            _buildFinancialCard(
+              context,
+              icon: Icons.account_balance,
+              iconColor: const Color(0xFF42A5F5),
+              title: 'Municipality Payments',
+              amount: totalMunicipalityPayments,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const MunicipalityPaymentsScreen(),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            _buildFinancialCard(
+              context,
+              icon: Icons.payments,
+              iconColor: const Color(0xFF66BB6A),
+              title: 'Rental Income',
+              amount: totalRentalIncome,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const RentalIncomeScreen(),
+                  ),
+                );
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFinancialCard(
+    BuildContext context, {
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required double amount,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Theme.of(context).dividerColor),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: iconColor, size: 24),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatZAR(amount),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: iconColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: Theme.of(context).textTheme.bodySmall?.color,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatZAR(double amount) {
+    if (amount >= 1000000) {
+      return 'R${(amount / 1000000).toStringAsFixed(1)}M';
+    } else if (amount >= 1000) {
+      return 'R${(amount / 1000).toStringAsFixed(1)}k';
+    }
+    return 'R${amount.toStringAsFixed(2)}';
   }
 
   void _showPropertySelector(BuildContext context, PropertyProvider prov) {
