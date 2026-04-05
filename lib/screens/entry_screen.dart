@@ -244,6 +244,15 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
           (existing.ratesFrequency == RatesFrequency.annually
               ? DateTime(existing.year, 1, 1)
               : null);
+
+      // Auto-fix: If paymentReceived is 0 but rent period exists, use rent amount
+      if (_paymentReceived == 0) {
+        final rentAmount = prov.getRentForMonth(widget.year, widget.month);
+        if (rentAmount != null && rentAmount > 0) {
+          _paymentReceived = rentAmount;
+        }
+      }
+
       _isEditing = false; // Show info view by default when data exists
     } else {
       _existingExpense = null;
@@ -626,6 +635,75 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
     return '${DateFormat('d MMM yyyy').format(startDate)} to ${DateFormat('d MMM yyyy').format(actualEndDate)}';
   }
 
+  void _showAnnualRatesInfo(MonthlyExpense e) {
+    final startDate = e.ratesStartDate ?? DateTime(e.year, 1, 1);
+    final endDate = DateTime(e.year + 1, e.ratesStartDate?.month ?? 1, 0);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Annual Rates Details'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              formatZAR(e.ratesTaxes),
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w800,
+                color: Color(0xFFAB47BC),
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Annual Amount',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Coverage Period',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${DateFormat('d MMM yyyy').format(startDate)} to ${DateFormat('d MMM yyyy').format(endDate)}',
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Monthly Equivalent',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              formatZAR(e.effectiveMonthlyRates),
+              style: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _formatDate(DateTime date) {
     return DateFormat('d MMM yyyy').format(date);
   }
@@ -781,35 +859,36 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
           _infoSectionLabel('Rates & Finance'),
           const SizedBox(height: 12),
           _infoCard([
-            _infoRow(
-              'Rates & Taxes',
-              effectiveRates,
-              const Color(0xFFAB47BC),
-              Icons.account_balance_outlined,
-              subtitle: e.ratesFrequency == RatesFrequency.annually
-                  ? '${formatZAR(e.ratesTaxes)}\n(${_formatDateRange(e.ratesStartDate, e.year)})'
+            InkWell(
+              onTap: e.ratesFrequency == RatesFrequency.annually
+                  ? () => _showAnnualRatesInfo(e)
                   : null,
-              subtitleStyle: const TextStyle(fontStyle: FontStyle.italic),
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: _infoRow(
+                  e.ratesFrequency == RatesFrequency.annually
+                      ? 'Rates & Taxes (annual)'
+                      : 'Rates & Taxes',
+                  effectiveRates,
+                  const Color(0xFFAB47BC),
+                  Icons.account_balance_outlined,
+                  subtitle: e.ratesFrequency == RatesFrequency.annually
+                      ? 'Tap for details'
+                      : null,
+                  subtitleStyle: TextStyle(
+                    fontStyle: FontStyle.italic,
+                    fontSize: 10,
+                    color: Theme.of(context).textTheme.bodySmall?.color,
+                  ),
+                ),
+              ),
             ),
             _infoRow(
                 'Interest', e.interest, const Color(0xFFEF5350), Icons.percent),
           ]),
           const SizedBox(height: 16),
 
-          // Totals card
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Theme.of(context).dividerColor),
-            ),
-            child: Column(
-              children: [
-                _summaryRow('Total Expenses', total, isTotal: true),
-              ],
-            ),
-          ),
           if (e.paymentReceived > 0 || e.paymentToMunicipality > 0) ...[
             const SizedBox(height: 16),
 
@@ -949,14 +1028,40 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
                   const SizedBox(height: 12),
                   Divider(color: Theme.of(context).dividerColor),
                   const SizedBox(height: 8),
+                  // Total Expenses row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Total Expenses',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                      Text(
+                        formatZAR(total),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Divider(color: Theme.of(context).dividerColor),
+                  const SizedBox(height: 8),
+                  // Net Balance row
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text(
                         'Net Balance',
                         style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
                           color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
@@ -1332,6 +1437,68 @@ class _MonthlyExpenseFormState extends State<_MonthlyExpenseForm> {
                   onChanged: (v) => setState(() => _paymentReceived = v),
                   color: const Color(0xFF6B8E6B),
                 ),
+                // Show auto-fill indicator and button when payment is 0 but rent exists
+                if (_paymentReceived == 0 && !_isEditing) ...[
+                  Builder(
+                    builder: (context) {
+                      final prov = context.read<PropertyProvider>();
+                      final rentAmount =
+                          prov.getRentForMonth(widget.year, widget.month);
+                      if (rentAmount != null && rentAmount > 0) {
+                        return Container(
+                          margin: const EdgeInsets.only(top: 8),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color:
+                                const Color(0xFF6B8E6B).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: const Color(0xFF6B8E6B)
+                                  .withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.auto_awesome,
+                                  size: 16, color: const Color(0xFF6B8E6B)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Rent period active: ${formatZAR(rentAmount)}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: const Color(0xFF6B8E6B),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  setState(() => _paymentReceived = rentAmount);
+                                },
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  minimumSize: const Size(0, 0),
+                                  tapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                child: const Text(
+                                  'Auto-fill',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                ],
                 const SizedBox(height: 16),
                 _buildDescribedField(
                   label: 'Payment to Municipality',

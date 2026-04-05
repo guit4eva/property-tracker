@@ -47,8 +47,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
 
         final totals = prov.allTimeTotals;
-        final monthlyData = prov.monthlyTotalsForChart;
+        // Filter monthly data to only include months up to current month
         final now = DateTime.now();
+        final currentMonthKey =
+            '${now.year}-${now.month.toString().padLeft(2, '0')}';
+        final monthlyData = prov.monthlyTotalsForChart.where((m) {
+          final key =
+              '${m['year']}-${(m['month'] as int).toString().padLeft(2, '0')}';
+          return key.compareTo(currentMonthKey) <= 0;
+        }).toList();
 
         return Scaffold(
           body: CustomScrollView(
@@ -703,6 +710,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final label = monthYear(m['year'] as int, m['month'] as int);
         final total = m['total'] as double;
         final received = m['received'] as double;
+        final running = m['running'] as double;
 
         return Container(
           margin: const EdgeInsets.only(bottom: 10),
@@ -733,6 +741,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         color: Theme.of(context).textTheme.bodySmall?.color,
                       ),
                     ),
+                    if (running > 0)
+                      Text(
+                        'Running: ${formatZAR(running)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: const Color(0xFF6B8E6B),
+                        ),
+                      ),
                   ],
                 ),
               ),

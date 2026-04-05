@@ -263,6 +263,58 @@ class PropertyProvider extends ChangeNotifier {
     return null;
   }
 
+  /// Auto-sync payment_received from rent periods for expenses that have 0
+  /// Returns the number of records updated
+  Future<int> syncPaymentReceivedFromRentPeriods() async {
+    int updatedCount = 0;
+
+    for (int i = 0; i < _expenses.length; i++) {
+      final expense = _expenses[i];
+
+      // Only update if paymentReceived is 0
+      if (expense.paymentReceived == 0) {
+        final rentAmount = getRentForMonth(expense.year, expense.month);
+
+        if (rentAmount != null && rentAmount > 0) {
+          // Create updated expense with correct payment_received
+          final updatedExpense = MonthlyExpense(
+            id: expense.id,
+            propertyId: expense.propertyId,
+            year: expense.year,
+            month: expense.month,
+            water: expense.water,
+            electricity: expense.electricity,
+            interest: expense.interest,
+            ratesTaxes: expense.ratesTaxes,
+            annualLevy: expense.annualLevy,
+            paymentReceived: rentAmount,
+            paymentToMunicipality: expense.paymentToMunicipality,
+            notes: expense.notes,
+            isLocked: expense.isLocked,
+            ratesFrequency: expense.ratesFrequency,
+            ratesStartDate: expense.ratesStartDate,
+          );
+
+          try {
+            // Save to database
+            final saved = await SupabaseService.upsertExpense(updatedExpense);
+            _expenses[i] = saved;
+            updatedCount++;
+          } catch (e) {
+            // If database update fails, keep local value but continue
+            debugPrint('Failed to sync expense ${expense.id}: $e');
+          }
+        }
+      }
+    }
+
+    if (updatedCount > 0) {
+      notifyListeners();
+    }
+
+    return updatedCount;
+  }
+
   List<RentPeriod> getRentPeriods() => List.unmodifiable(_rentPeriods);
 
   Future<void> addRentPeriod(RentPeriod period) async {
@@ -271,6 +323,9 @@ class PropertyProvider extends ChangeNotifier {
       _rentPeriods.add(saved);
       _rentPeriods.sort((a, b) => a.startDate.compareTo(b.startDate));
       notifyListeners();
+
+      // Auto-sync payment_received for all expenses
+      await syncPaymentReceivedFromRentPeriods();
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -287,6 +342,9 @@ class PropertyProvider extends ChangeNotifier {
         _rentPeriods.sort((a, b) => a.startDate.compareTo(b.startDate));
       }
       notifyListeners();
+
+      // Auto-sync payment_received for all expenses
+      await syncPaymentReceivedFromRentPeriods();
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -313,7 +371,7 @@ class PropertyProvider extends ChangeNotifier {
     final costs = getRunningCostsForMonth(year, month);
     double total = 0;
     for (final c in costs) {
-      total += c.amount;
+      total += c.monthlyEquivalent;
     }
     return total;
   }

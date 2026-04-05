@@ -170,14 +170,15 @@ class _SummaryScreenState extends State<SummaryScreen> {
         elec = 0,
         interest = 0,
         rates = 0,
-        running = yearRunningCosts, // Start with running costs total
+        running = 0,
         received = 0;
     for (final m in yearData) {
       water += m['water'] as double;
       elec += m['electricity'] as double;
       interest += m['interest'] as double;
       rates += m['rates'] as double;
-      running += m['running'] as double;
+      running += m['running']
+          as double; // Already includes running costs from chart data
       received += m['received'] as double;
     }
     final total = water + elec + interest + rates + running;
@@ -349,16 +350,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
   Widget _buildMonthlyBreakdownTable(
       List<Map<String, dynamic>> yearData, PropertyProvider prov) {
-    // Get running costs for each month
-    final runningCostsByMonth = <int, double>{};
-    for (final c
-        in prov.runningCosts.where((cost) => cost.year == _selectedYear)) {
-      final month = c.month;
-      runningCostsByMonth[month] = (runningCostsByMonth[month] ?? 0) + c.amount;
-    }
-
-    if (yearData.isEmpty && runningCostsByMonth.isEmpty)
-      return const SizedBox();
+    if (yearData.isEmpty) return const SizedBox();
 
     final months = List.generate(12, (i) => i + 1);
 
@@ -421,27 +413,9 @@ class _SummaryScreenState extends State<SummaryScreen> {
                       orElse: () => null,
                     );
                 final hasData = data != null;
-                final hasRunningCosts = runningCostsByMonth.containsKey(m);
-                final hasAnyData = hasData || hasRunningCosts;
-
-                // Combine running costs from both sources
-                double runningTotal = 0;
-                if (hasData) runningTotal += data['running'] as double;
-                if (hasRunningCosts) runningTotal += runningCostsByMonth[m]!;
-
-                // Calculate total including running costs
-                double total = 0;
-                if (hasData) {
-                  total = data['total'] as double;
-                  if (hasRunningCosts) {
-                    total += runningCostsByMonth[m]!;
-                  }
-                } else if (hasRunningCosts) {
-                  total = runningCostsByMonth[m]!;
-                }
 
                 final style = TextStyle(
-                  color: hasAnyData
+                  color: hasData
                       ? Theme.of(context).textTheme.bodyLarge?.color
                       : Theme.of(context).textTheme.bodySmall?.color
                     ?..withAlpha(5),
@@ -469,22 +443,18 @@ class _SummaryScreenState extends State<SummaryScreen> {
                         color: hasData ? const Color(0xFFAB47BC) : null),
                   )),
                   DataCell(Text(
-                    hasAnyData ? _compact(runningTotal) : '—',
+                    hasData ? _compact(data['running'] as double) : '—',
                     style: style.copyWith(
-                        color: hasAnyData ? const Color(0xFF6B8E6B) : null),
+                        color: hasData ? const Color(0xFF6B8E6B) : null),
                   )),
                   DataCell(Text(
-                    hasAnyData ? _compact(total) : '—',
+                    hasData ? _compact(data['total'] as double) : '—',
                     style: style.copyWith(fontWeight: FontWeight.w700),
                   )),
                   DataCell(Text(
-                    hasAnyData && hasData
-                        ? _compact(data['received'] as double)
-                        : '—',
+                    hasData ? _compact(data['received'] as double) : '—',
                     style: style.copyWith(
-                        color: hasAnyData && hasData
-                            ? const Color(0xFF6B8E6B)
-                            : null),
+                        color: hasData ? const Color(0xFF6B8E6B) : null),
                   )),
                 ]);
               }).toList(),
@@ -506,8 +476,7 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
     final byCategory = <CostCategory, double>{};
     for (final c in costs) {
-      byCategory[c.category] =
-          (byCategory[c.category] ?? 0) + c.monthlyEquivalent;
+      byCategory[c.category] = (byCategory[c.category] ?? 0) + c.amount;
     }
     final total = byCategory.values.fold(0.0, (s, v) => s + v);
 
@@ -601,24 +570,14 @@ class _SummaryScreenState extends State<SummaryScreen> {
         ? prov.allPropertiesMonthlyTotals
         : prov.monthlyTotalsForChart;
 
-    // Get running costs for all years
-    final allRunningCosts =
-        _showAllProperties ? prov.allRunningCosts : prov.runningCosts;
-
     List<Map<String, double>> yearTotals = years.map((y) {
       final yd = allData.where((m) => m['year'] == y).toList();
-      // Get running costs for this year
-      final yearRunningCosts = allRunningCosts
-          .where((c) => c.year == y)
-          .fold(0.0, (sum, c) => sum + c.monthlyEquivalent);
       return {
         'year': y.toDouble(),
-        'total': yd.fold(0.0, (s, m) => s + (m['total'] as double)) +
-            yearRunningCosts,
+        'total': yd.fold(0.0, (s, m) => s + (m['total'] as double)),
         'water': yd.fold(0.0, (s, m) => s + (m['water'] as double)),
         'electricity': yd.fold(0.0, (s, m) => s + (m['electricity'] as double)),
-        'running': yd.fold(0.0, (s, m) => s + (m['running'] as double)) +
-            yearRunningCosts,
+        'running': yd.fold(0.0, (s, m) => s + (m['running'] as double)),
       };
     }).toList();
 

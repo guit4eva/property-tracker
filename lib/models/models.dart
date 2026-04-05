@@ -664,7 +664,12 @@ class RentPeriod {
 
   bool isActiveForDate(DateTime date) {
     if (date.isBefore(startDate)) return false;
-    if (endDate != null && date.isAfter(endDate!)) return false;
+    // Include the entire end month by checking against the last day of that month
+    if (endDate != null) {
+      // Create end-of-month date for the endDate
+      final endOfEndMonth = DateTime(endDate!.year, endDate!.month + 1, 0);
+      if (date.isAfter(endOfEndMonth)) return false;
+    }
     return true;
   }
 }

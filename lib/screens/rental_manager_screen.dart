@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../providers/property_provider.dart';
 import '../models/models.dart';
+import '../widgets/shared_widgets.dart' as widgets;
 
 class RentalManagerScreen extends StatefulWidget {
   final String propertyId;
@@ -176,49 +177,48 @@ class _RentalManagerScreenState extends State<RentalManagerScreen> {
             period.endDate == null || period.endDate!.isAfter(now);
 
         return Card(
-          margin: const EdgeInsets.only(bottom: 16),
-          elevation: 2,
+          margin: const EdgeInsets.only(bottom: 8),
+          elevation: 1,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: InkWell(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
             onTap: () => _showAddEditDialog(period: period),
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
                       Container(
-                        width: 44,
-                        height: 44,
+                        width: 36,
+                        height: 36,
                         decoration: BoxDecoration(
                           color: isCurrent
                               ? const Color(0xFF4CAF50).withValues(alpha: 0.15)
                               : Colors.grey.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(
                           isCurrent ? Icons.home : Icons.history_edu,
                           color:
                               isCurrent ? const Color(0xFF4CAF50) : Colors.grey,
-                          size: 22,
+                          size: 18,
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 10),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Wrap(
-                              runSpacing: 2,
+                            Row(
                               children: [
                                 Text(
-                                  'R${period.rentalAmount.toStringAsFixed(2)}',
+                                  widgets.formatZAR(period.rentalAmount),
                                   style: const TextStyle(
-                                    fontSize: 18,
+                                    fontSize: 15,
                                     fontWeight: FontWeight.w800,
                                   ),
                                 ),
@@ -226,19 +226,19 @@ class _RentalManagerScreenState extends State<RentalManagerScreen> {
                                   const SizedBox(width: 6),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 2,
+                                      horizontal: 6,
+                                      vertical: 1,
                                     ),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFF4CAF50)
                                           .withValues(alpha: 0.15),
-                                      borderRadius: BorderRadius.circular(8),
+                                      borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: const Text(
                                       'Current',
                                       style: TextStyle(
                                         color: Color(0xFF4CAF50),
-                                        fontSize: 10,
+                                        fontSize: 9,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),
@@ -246,12 +246,12 @@ class _RentalManagerScreenState extends State<RentalManagerScreen> {
                                 ],
                               ],
                             ),
-                            const SizedBox(height: 2),
+                            const SizedBox(height: 1),
                             Text(
                               _formatDateRange(
                                   period.startDate, period.endDate),
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 11,
                                 color: Theme.of(context)
                                     .textTheme
                                     .bodyMedium
@@ -264,12 +264,13 @@ class _RentalManagerScreenState extends State<RentalManagerScreen> {
                       PopupMenuButton<String>(
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
+                        icon: const Icon(Icons.more_vert, size: 18),
                         itemBuilder: (_) => [
                           const PopupMenuItem(
                             value: 'edit',
                             child: Row(
                               children: [
-                                Icon(Icons.edit_outlined, size: 18),
+                                Icon(Icons.edit_outlined, size: 16),
                                 SizedBox(width: 8),
                                 Text('Edit'),
                               ],
@@ -280,7 +281,7 @@ class _RentalManagerScreenState extends State<RentalManagerScreen> {
                             child: Row(
                               children: [
                                 Icon(Icons.delete_outline,
-                                    size: 18, color: Colors.red),
+                                    size: 16, color: Colors.red),
                                 SizedBox(width: 8),
                                 Text('Delete',
                                     style: TextStyle(color: Colors.red)),
@@ -297,41 +298,6 @@ class _RentalManagerScreenState extends State<RentalManagerScreen> {
                         },
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Theme.of(context).dividerColor,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildStatItem(
-                          'Start',
-                          DateFormat('MMM yyyy').format(period.startDate),
-                          Icons.calendar_today,
-                        ),
-                        Container(
-                          width: 1,
-                          height: 30,
-                          color: Theme.of(context).dividerColor,
-                        ),
-                        _buildStatItem(
-                          period.endDate == null ? 'End' : 'Ended',
-                          period.endDate == null
-                              ? 'Ongoing'
-                              : DateFormat('MMM yyyy').format(period.endDate!),
-                          period.endDate == null
-                              ? Icons.more_horiz
-                              : Icons.event_busy,
-                        ),
-                      ],
-                    ),
                   ),
                 ],
               ),
