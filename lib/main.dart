@@ -60,10 +60,13 @@ void main() async {
   _log(
       'SUPABASE_ANON_KEY: ${supabaseAnonKey.isEmpty ? 'NOT SET' : 'SET (hidden)'}');
 
+  // Only initialize Supabase if credentials are provided
   if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
     _supabaseInitError =
-        'Supabase credentials not found. Please check your .env file.';
-    _log('$_supabaseInitError', level: 'ERROR');
+        'Supabase credentials not found. Please update your .env file with:\n'
+        'SUPABASE_URL=your_project_url\n'
+        'SUPABASE_ANON_KEY=your_anon_key';
+    _log(_supabaseInitError!, level: 'ERROR');
   } else {
     try {
       await Supabase.initialize(
